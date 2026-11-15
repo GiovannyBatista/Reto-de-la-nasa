@@ -63,8 +63,23 @@ var tiempo_restante: float = 0.0
 var snap_dia: Dictionary = {}
 var siguiente: String = ""
 
+const RUTA_FUENTE: String = "res://assets/Thin_Sans.ttf"
+
+# Fuente pixel-art: se usa si el archivo existe; los acentos, la ñ y los símbolos que la fuente no tiene salen con una fuente del sistema.
+func _aplicar_fuente() -> void:
+	if not ResourceLoader.exists(RUTA_FUENTE):
+		return
+	var f: Font = load(RUTA_FUENTE)
+	f.fallbacks = [SystemFont.new()]
+	var t = Theme.new()
+	t.default_font = f
+	t.default_font_size = 18   # con una fuente TTF puedes usar cualquier tamaño
+	theme = t
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
 func _ready():
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_aplicar_fuente()
 	var raiz = HBoxContainer.new()
 	raiz.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	raiz.add_theme_constant_override("separation", 12)

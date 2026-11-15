@@ -1,0 +1,39 @@
+[gd_scene format=3 uid="uid://kk6nldhbce1j"]
+
+[ext_resource type="Script" path="res://srcipts/ShipDesigner.gd" id="1_hq624"]
+
+[node name="ShipDesigner" type="Control" unique_id=1851733119]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_hq624")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1946934931]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="Titulo" type="Label" parent="VBoxContainer" unique_id=534903528]
+layout_mode = 2
+text = "Diseño de la nave"
+
+[node name="EtiquetaPresupuesto" type="Label" parent="VBoxContainer" unique_id=911125760]
+layout_mode = 2
+
+[node name="BarraPresupuesto" type="ProgressBar" parent="VBoxContainer" unique_id=279849050]
+layout_mode = 2
+
+[node name="EtiquetaMasa" type="Label" parent="VBoxContainer" unique_id=375447655]
+layout_mode = 2
+
+[node name="BarraMasa" type="ProgressBar" parent="VBoxContainer" unique_id=648203012]
+layout_mode = 2
+
+[node name="Lista" type="VBoxContainer" parent="VBoxContainer" unique_id=1412837954]
+layout_mode = 2
+
+[node name="Mensaje" type="Label" parent="VBoxContainer" unique_id=827046407]
+layout_mode = 2
