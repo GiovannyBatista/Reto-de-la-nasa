@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://yvn2be2vkd8p"]
 
-[ext_resource type="Texture2D" uid="uid://troaxymv5q3k" path="res://scenes/TileMaps/2x/stars-far-tile.png" id="1_5c3j1"]
+[ext_resource type="Texture2D" uid="uid://dpbdo7e6htx6w" path="res://scenes/TileMaps/2x/stars-far-tile-seamless.png" id="1_13syo"]
 [ext_resource type="Texture2D" uid="uid://5hy46ulruh8" path="res://scenes/TileMaps/2x/cabina trasparente.png" id="2_5c3j1"]
 [ext_resource type="Texture2D" uid="uid://cydcigtkk8vav" path="res://scenes/TileMaps/2x/planet-moon-spin-24f.png" id="3_13syo"]
 
@@ -185,11 +185,11 @@ animations = [{
 [node name="starfield" type="Parallax2D" parent="." unique_id=483724415]
 scale = Vector2(2, 2)
 repeat_size = Vector2(256, 256)
-autoscroll = Vector2(-15, -5)
+autoscroll = Vector2(-15, -10)
 repeat_times = 5
 
-[node name="starfar" type="Sprite2D" parent="starfield" unique_id=194023481]
-texture = ExtResource("1_5c3j1")
+[node name="Sprite2D" type="Sprite2D" parent="starfield" unique_id=1743842545]
+texture = ExtResource("1_13syo")
 
 [node name="cabina" type="Sprite2D" parent="." unique_id=475114984]
 position = Vector2(640, 360)

@@ -1,10 +1,11 @@
-[gd_scene format=3 uid="uid://dh5tqtigxhfee"]
+[gd_scene format=4 uid="uid://dh5tqtigxhfee"]
 
 [ext_resource type="Texture2D" uid="uid://troaxymv5q3k" path="res://scenes/TileMaps/2x/stars-far-tile.png" id="1_xyauh"]
 [ext_resource type="Texture2D" uid="uid://dq560t5uxuapk" path="res://scenes/TileMaps/2x/stars-mid-tile.png" id="2_avpae"]
 [ext_resource type="Texture2D" uid="uid://2vgainbkwbd3" path="res://scenes/TileMaps/2x/stars-near-tile.png" id="3_m8jtf"]
 [ext_resource type="Texture2D" uid="uid://clgfi751hdjm4" path="res://scenes/TileMaps/2x/planet-terran-spin-24f.png" id="4_iso3c"]
 [ext_resource type="Texture2D" uid="uid://dt4vld6424o10" path="res://scenes/TileMaps/2x/star_yellow.png" id="5_avpae"]
+[ext_resource type="Texture2D" uid="uid://cydcigtkk8vav" path="res://scenes/TileMaps/2x/planet-moon-spin-24f.png" id="6_m8jtf"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_hw2q8"]
 texture = ExtResource("1_xyauh")
@@ -637,31 +638,216 @@ animations = [{
 "speed": 5.0
 }]
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_ouofs"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(0, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_drn63"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(96, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ql1i6"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(192, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_afa28"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(288, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_yqgnc"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(384, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_2u3l4"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(480, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ldy0q"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(576, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_aj406"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(672, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_vo1wg"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(768, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_s810f"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(864, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_mkx85"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(960, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_0vets"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(1056, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_6rwid"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(1152, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_l27kn"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(1248, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_le74i"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(1344, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_mfkyr"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(1440, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_gh0je"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(1536, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ph4no"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(1632, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_uxap4"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(1728, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_wbjel"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(1824, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_3gheb"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(1920, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_du8as"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(2016, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ceo1a"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(2112, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_hhlsj"]
+atlas = ExtResource("6_m8jtf")
+region = Rect2(2208, 0, 96, 96)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_kh5iw"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ouofs")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_drn63")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ql1i6")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_afa28")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_yqgnc")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_2u3l4")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ldy0q")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_aj406")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_vo1wg")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_s810f")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_mkx85")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_0vets")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_6rwid")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_l27kn")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_le74i")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_mfkyr")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_gh0je")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ph4no")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_uxap4")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_wbjel")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_3gheb")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_du8as")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ceo1a")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_hhlsj")
+}],
+"loop": 1,
+"name": &"default",
+"speed": 4.0
+}]
+
 [node name="Node2D" type="Node2D" unique_id=1412363206]
 
 [node name="Tielmaplayers" type="Node2D" parent="." unique_id=420081784]
 
 [node name="background" type="TileMapLayer" parent="Tielmaplayers" unique_id=844732513]
-tile_map_data = PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+tile_map_data = PackedByteArray("AAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAABAAEAAAAAAAAAAAACAAAAAAAAAAAAAAADAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAACAAEAAAAAAAAAAAAAAAIAAAAAAAAAAAABAAIAAAAAAAAAAAACAAIAAAAAAAAAAAADAAIAAAAAAAAAAAADAAEAAAAAAAAAAAAEAAEAAAAAAAAAAAAEAAIAAAAAAAAAAAA=")
 tile_set = SubResource("TileSet_0ru8o")
 
 [node name="starsMid" type="TileMapLayer" parent="Tielmaplayers" unique_id=1051908669]
-tile_map_data = PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+tile_map_data = PackedByteArray("AAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAABAAEAAAAAAAAAAAACAAAAAAAAAAAAAAACAAEAAAAAAAAAAAADAAEAAAAAAAAAAAADAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAEAAEAAAAAAAAAAAAEAAIAAAAAAAAAAAADAAIAAAAAAAAAAAACAAIAAAAAAAAAAAABAAIAAAAAAAAAAAAAAAIAAAAAAAAAAAA=")
 tile_set = SubResource("TileSet_krpui")
 
 [node name="starsNear" type="TileMapLayer" parent="Tielmaplayers" unique_id=1435036781]
-tile_map_data = PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+tile_map_data = PackedByteArray("AAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAABAAEAAAAAAAAAAAABAAIAAAAAAAAAAAAAAAIAAAAAAAAAAAACAAIAAAAAAAAAAAADAAIAAAAAAAAAAAAEAAIAAAAAAAAAAAAEAAEAAAAAAAAAAAADAAEAAAAAAAAAAAACAAEAAAAAAAAAAAACAAAAAAAAAAAAAAADAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAA=")
 tile_set = SubResource("TileSet_si781")
 
 [node name="tierra" type="AnimatedSprite2D" parent="." unique_id=424451892]
-position = Vector2(380, 80)
+position = Vector2(832, 353)
 sprite_frames = SubResource("SpriteFrames_u5bk5")
 autoplay = "default"
 frame_progress = 0.49395388
 
 [node name="sol" type="AnimatedSprite2D" parent="." unique_id=855353638]
-position = Vector2(38, 60)
+position = Vector2(266.00003, 198.00002)
+scale = Vector2(2.5, 2.5)
 sprite_frames = SubResource("SpriteFrames_kddjp")
 autoplay = "default"
 frame = 22
 frame_progress = 0.6798151
+
+[node name="luna" type="AnimatedSprite2D" parent="." unique_id=372490805]
+position = Vector2(1005, 226)
+scale = Vector2(0.5, 0.5)
+sprite_frames = SubResource("SpriteFrames_kh5iw")
+autoplay = "default"
+frame = 14
+frame_progress = 0.338181
