@@ -1,256 +1,141 @@
-# Guía de inicio en Godot — MYG-351: Last Signal
+# Guía del proyecto — MYG-351: Last Signal
 
-Guía para empezar desde cero con Godot y encargarte de **tu parte del juego: el menú principal y las pantallas de los 3 finales**.
-
----
-
-## 0. Qué hay ya hecho en el proyecto (para que no lo repitas)
-
-| Archivo | Qué hace | Quién |
-|---|---|---|
-| `srcipts/GameManager.gd` | El "cerebro": recursos de la nave, tripulantes, días, cálculo del final (`evaluar_final()`) y puntaje (`puntaje()`). Es un **Autoload** (se puede usar desde cualquier escena escribiendo `GameManager.algo`). | Giovanny |
-| `srcipts/Eventos.gd` | Banco de 60 decisiones + 5 hitos fijos (días 1, 4, 8, 10, 14). También Autoload. | Giovanny |
-| `scenes/shop.tscn` + `Shop.gd` | Fase 0: presupuesto de 10.000 CM. **Hoy es la escena con la que arranca el juego.** | Giovanny |
-| `scenes/mission.tscn` + `Mission.gd` | Los 14 días: HUD, decisiones, temporizador y el final (solo en texto). | Giovanny |
-| `scenes/main_menu.tscn` | **Vacía.** Aquí empieza tu trabajo. | Tú |
-
-> ⚠️ La carpeta se llama `srcipts` (con el error de letra). **No la renombres**: Godot guarda las rutas y se romperían las escenas.
-
-Lo que el documento del juego (GDD) pide y **todavía no existe**:
-- Menú principal.
-- "Pantallas dedicadas para los 3 finales" (hoy el final es un bloque de texto dentro de la misión).
-- Retratos de personajes, fondo de cabina, audio.
+Guía para entender cómo está armado el juego, abrirlo en Godot y cambiar cosas sin romper nada.
 
 ---
 
-## 1. Instalar Godot (10 minutos)
-
-1. Pregúntale a Giovanny qué versión exacta usa: en Godot, menú **Ayuda → Acerca de Godot**. El proyecto está hecho en **Godot 4.7** (lo dice `project.godot`). Usa **la misma versión** que él, si no, los archivos se modifican solos y habrá conflictos en git.
-2. Entra a **https://godotengine.org/download/windows/**
-3. Descarga **Godot Engine** (la versión normal, **NO** la que dice ".NET" o "C#"; nosotros usamos GDScript).
-   - Si tu versión no es la última, búscala en **https://godotengine.org/download/archive/**
-4. Es un `.zip`, **no tiene instalador**. Descomprímelo en una carpeta fija, por ejemplo `C:\Godot\`.
-5. Dentro hay un `.exe` (ej. `Godot_v4.7-stable_win64.exe`). Haz clic derecho → **Anclar a inicio** o crea un acceso directo en el escritorio.
-6. Ábrelo. La primera vez muestra el **Administrador de proyectos**.
-
-## 2. Abrir nuestro proyecto
-
-1. En el Administrador de proyectos: **Importar** → busca la carpeta
-   `C:\Users\camil\OneDrive\Desktop\Reto-de-la-nasa` → elige el archivo `project.godot` → **Abrir/Editar**.
-2. La primera vez tarda un poco: crea la carpeta oculta `.godot/` (es caché, está en `.gitignore`, no se sube).
-3. Pulsa **F5** (o el botón ▶ arriba a la derecha) para jugar. Debe abrir la tienda de la Fase 0. Juega una partida completa para entender el juego.
-
-> 💡 Consejo: OneDrive a veces bloquea archivos mientras sincroniza. Si Godot da errores raros al guardar, pausa la sincronización de OneDrive mientras trabajas.
-
-## 3. Tour del editor (lo mínimo que necesitas)
+## 1. Cómo se juega (el recorrido de pantallas)
 
 ```
-┌───────────────┬──────────────────────────────┬───────────────┐
-│ ESCENA        │                              │ INSPECTOR     │
-│ (árbol de     │       VISTA 2D / SCRIPT      │ (propiedades  │
-│  nodos)       │   (pestañas arriba: 2D,      │  del nodo     │
-│               │    3D, Script, AssetLib)     │  seleccionado)│
-├───────────────┤                              ├───────────────┤
-│ SISTEMA DE    │                              │ NODO          │
-│ ARCHIVOS      ├──────────────────────────────┤ (señales:     │
-│ (res://)      │ SALIDA (aquí salen print())  │  conectar     │
-│               │                              │  botones)     │
-└───────────────┴──────────────────────────────┴───────────────┘
+Menú  →  Prólogo  →  Fase 0 (suministros)  →  Despegue  →  Misión (14 días)  →  Final
 ```
 
-Conceptos clave (en 1 línea cada uno):
-- **Nodo**: una pieza (un botón, un texto, una imagen). Todo en Godot son nodos.
-- **Escena** (`.tscn`): un árbol de nodos guardado. Menú, tienda, misión… cada una es una escena.
-- **Script** (`.gd`): código GDScript pegado a un nodo para darle comportamiento.
-- **Señal**: un aviso que lanza un nodo ("me presionaron"). Se conecta a una función.
-- **Autoload**: script que está siempre vivo, en todas las escenas (`GameManager`, `Eventos`).
-- `res://` = la carpeta del proyecto.
+Cada día de la misión sigue este ciclo:
 
-Atajos útiles: **F5** jugar el juego · **F6** jugar solo la escena abierta · **Ctrl+S** guardar · **Ctrl+A** añadir nodo.
-
-## 4. GDScript en 5 minutos (se parece a Python)
-
-```gdscript
-extends Control                 # este script va en un nodo de tipo Control
-
-var vidas: int = 3              # variable con tipo
-const MAX: int = 10             # constante
-
-func _ready():                  # se ejecuta 1 vez cuando la escena aparece
-	print("Hola NASA")          # sale en el panel Salida
-
-func _on_boton_pressed():       # función que conectamos a la señal de un botón
-	vidas -= 1
-	if vidas <= 0:
-		get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+```
+Órdenes del día → Consumo → Aviso → Decisión 1 → (Minijuego) → Resultado
+                          → Aviso → Decisión 2 → Resultado → Fin del día
 ```
 
-⚠️ La **indentación es con TAB** (como Python pero con tabulador). Si mezclas espacios y tabs, da error.
+- **Decisión 1**: un momento clave de la historia (días 1, 4, 8, 10 y 14) o una emergencia de la nave.
+- **Minijuego**: solo en las emergencias, cuando eliges un procedimiento válido. Tú haces la reparación y eso cambia el resultado.
+- **Decisión 2**: una decisión de recursos (no hay en el día 1).
 
-Para leer datos del juego desde tu escena:
-```gdscript
-GameManager.evaluar_final()   # "bueno", "intermedio" o "malo"
-GameManager.puntaje()["total"] # puntuación de 0 a 1000
-GameManager.vivos().size()     # cuántos tripulantes siguen vivos
-GameManager.estado("marcus")   # "activo", "herido", "crítico" o "muerto"
-```
+## 2. Mapa de archivos
 
-Ruta de aprendizaje recomendada (1–2 tardes):
-1. Documentación oficial en español: https://docs.godotengine.org/es/stable/ → **Introducción** → "Tu primer juego 2D". Haz al menos hasta la parte de la interfaz (HUD).
-2. Lee `Shop.gd` (es corto, 159 líneas) para ver cómo Giovanny crea botones y cambia de escena.
+| Pantalla | Escena | Script | Quién lo hizo |
+|---|---|---|---|
+| Menú principal | `scenes/main_menu.tscn` | `srcipts/MainMenu.gd` | Camilo |
+| Prólogo (4 páginas) | `scenes/intro.tscn` | `srcipts/Intro.gd` | Camilo |
+| Fase 0: suministros | `scenes/shop.tscn` | `srcipts/Shop.gd` | Giovanny (rediseñada en 3 pasos) |
+| Despegue | `scenes/despegue.tscn` | `srcipts/Despegue.gd` | Camilo |
+| Misión | `scenes/mission.tscn` | `srcipts/MisionVisual.gd` | Camilo (pantalla) |
+| Minijuegos | (dentro de la misión) | `srcipts/Minijuego.gd` | Camilo |
+| Finales | `scenes/final.tscn` | `srcipts/Final.gd` | Camilo |
 
-## 5. Trabajar con git sin romper nada
+Scripts que no son pantallas:
 
-Tú estás en la rama `camilo_rama`. Flujo de cada día:
+| Script | Qué hace |
+|---|---|
+| `srcipts/GameManager.gd` | **Las reglas del juego** (Giovanny): recursos, tripulación, días, finales y puntaje. Es un Autoload: se usa como `GameManager.algo` desde cualquier parte. |
+| `srcipts/Eventos.gd` | **Las 60 decisiones y los 5 momentos clave** (Giovanny). También Autoload. |
+| `srcipts/Estilo.gd` | Colores, fuente, paneles, botones, iconos, retratos y animaciones que comparten todas las pantallas. |
+| `srcipts/FondoEspacio.gd` | Estrellas que se mueven y planetas que giran. |
+| `srcipts/Memos.gd` | Los Memos NASA y sus enlaces (salen del Storytelling). |
+| `srcipts/Sonido.gd` | Música y efectos. Autoload: `Sonido.efecto("alarma")`. |
+| `srcipts/Mission.gd` | La versión antigua de la misión, solo texto. **Ya no se usa**, queda de referencia. |
+
+> ⚠️ La carpeta se llama `srcipts` (con la letra cambiada). **No la renombres**: Godot guarda las rutas y se romperían las escenas.
+
+> ℹ️ Casi todas las escenas `.tscn` están casi vacías: el script arma la pantalla por código al arrancar. Por eso en el editor se ven en blanco y solo se llenan al ejecutar.
+
+## 3. Abrir y ejecutar el proyecto
+
+1. Usa **la misma versión de Godot que el equipo**: 4.7.2 (la normal, no la ".NET").
+2. Administrador de proyectos → **Importar** → carpeta del proyecto → `project.godot`.
+3. **F5** ejecuta el juego desde el menú. **F6** ejecuta solo la escena que tengas abierta.
+4. Los errores salen en rojo en la pestaña **Salida** (abajo).
+
+Las escenas de misión y final necesitan que exista una partida, así que para verlas bien usa F5 y juega hasta llegar.
+
+## 4. Trabajar con git
 
 ```bash
 git pull origin main
 ```
-(trae lo último de Giovanny a tu rama antes de empezar)
-
 ```bash
-git add scenes/main_menu.tscn srcipts/MainMenu.gd
+git status
 ```
 ```bash
-git commit -m "Menu principal"
+git add srcipts/MainMenu.gd
 ```
 ```bash
-git push origin camilo_rama
+git commit -m "Lo que cambiaste"
+```
+```bash
+git push
 ```
 
-Reglas para no pisarse:
-- **No edites** `GameManager.gd`, `Eventos.gd`, `Mission.gd` ni `Shop.gd` sin avisarle a Giovanny. Si necesitas algo de ahí, pídeselo o hazlo en un cambio pequeño y acordado.
-- Tus archivos nuevos: `scenes/main_menu.tscn`, `scenes/final.tscn`, `srcipts/MainMenu.gd`, `srcipts/Final.gd`, y la carpeta `assets/` para imágenes y sonidos.
+- Antes de cambiar de rama, haz commit de lo tuyo.
+- Godot toca solo algunos archivos `.import` y `project.godot` al abrir el proyecto (saltos de línea). Si no los cambiaste tú, no los subas.
 
----
+## 5. Recetas: cómo cambiar cada cosa
 
-## 6. TU PARTE: Menú principal + Pantallas de final
+**Un texto de una pantalla.** Abre el script de esa pantalla (tabla de arriba), busca el texto con Ctrl+F y cámbialo.
 
-### Por qué esta parte
-- Es la **primera y la última impresión** del jurado.
-- Casi no depende del código de Giovanny: solo **lee** `GameManager`, no lo cambia.
-- Se hace mucho en el **editor visual**, ideal para aprender Godot.
+**Un color o el tamaño de la letra.** Están todos juntos al inicio de `srcipts/Estilo.gd` (`C_CIAN`, `C_VERDE`...). La fuente pixel-art se ve nítida solo en tamaños múltiplos de 8 (16, 24, 32, 48).
 
-### Paso 1 — Menú principal (tu primer ejercicio)
+**Un dibujo (sprite).** Guarda tu PNG con el **mismo nombre y tamaño** encima del que quieres cambiar:
 
-1. En *Sistema de archivos*, doble clic en `scenes/main_menu.tscn`. Ya tiene un nodo raíz `MainMenu` (Control).
-2. Selecciona `MainMenu` → **Ctrl+A** → añade un `ColorRect`. En la barra de arriba de la vista 2D: **Anclaje → Rect completo**. En el Inspector pon `Color` casi negro (espacio).
-3. Añade (hijo de `MainMenu`) un `VBoxContainer` → anclaje **Centro**.
-4. Dentro del `VBoxContainer` añade:
-   - `Label` → Text: `MYG-351: LAST SIGNAL`
-   - `Label` → Text: `Misión Artemis-MYG · 14 días · 4 astronautas`
-   - `Button` → renómbralo `BotonIniciar` (doble clic al nombre), Text: `Iniciar misión`
-   - `Button` → `BotonReferencias`, Text: `Referencias NASA`
-   - `Button` → `BotonSalir`, Text: `Salir`
-5. Clic derecho en `MainMenu` → **Añadir script** → ruta `res://srcipts/MainMenu.gd` → Crear.
-6. Conecta las señales: selecciona `BotonIniciar` → pestaña **Nodo** (a la derecha) → doble clic en `pressed()` → Conectar. Repite con los otros dos botones. Godot te crea las funciones.
-7. Escribe el código:
-
-```gdscript
-extends Control
-
-func _on_boton_iniciar_pressed():
-	get_tree().change_scene_to_file("res://scenes/shop.tscn")
-
-func _on_boton_referencias_pressed():
-	OS.shell_open("https://www.nasa.gov/reference/crew-systems/")
-
-func _on_boton_salir_pressed():
-	get_tree().quit()
-```
-
-8. Con la escena abierta, pulsa **F6** para probarla sola.
-9. Cuando funcione, hazla la escena inicial: **Proyecto → Configuración del proyecto → Aplicación → Ejecutar → Escena principal** → `main_menu.tscn`. *(Avísale a Giovanny, porque hoy arranca en la tienda.)*
-
-Extras cuando ya funcione: añadir un `TextureRect` con un fondo de la Luna/Tierra (imágenes de dominio público de NASA en https://images.nasa.gov — revisa que no tengan logos), un `AudioStreamPlayer` con zumbido ambiental, y una animación de título que parpadee como señal de radio.
-
-### Paso 2 — Escena de finales (`scenes/final.tscn`)
-
-Una escena que **lee** el resultado y muestra una pantalla distinta para cada final:
-
-| Final | Condición (ya calculada por `GameManager.evaluar_final()`) | Ambiente sugerido |
+| Carpeta | Qué hay | Tamaño |
 |---|---|---|
-| **Bueno — Misión cumplida** | 4 vivos, barras > 15 %, ciencia ≥ 70 % | Paracaídas sobre el Pacífico, colores cálidos, música triunfal |
-| **Intermedio — Misión abortada** | Abortaron, murió alguien o poca ciencia | Cápsula en el mar, tonos grises, silencio de radio |
-| **Malo — Silencio total** | Una barra en 0, CO₂ o integridad | Pantalla negra, línea de telemetría plana, texto tipo terminal "LAST SIGNAL" |
+| `assets/retratos/` | `elena_normal.png`, `elena_estresado.png`, `elena_herido.png`, `elena_critico.png`, `elena_perdido.png` (y lo mismo para marcus, sofia y leo) | 48×48 |
+| `assets/iconos/` | iconos de recursos, estados y órdenes | 32×32 |
+| `assets/nave/` | Orión, cápsula, paracaídas, cohete y torre | varios |
+| `assets/finales/` | fondos de los finales y del despegue | 320×180 |
+| `assets/ui/`, `assets/space/`, `scenes/TileMaps/2x/` | arte del equipo (botones, paneles, planetas, cabina) | — |
 
-Estructura sugerida de nodos:
+**Un sonido.** Reemplaza el `.wav` de `assets/audio/` por otro con el mismo nombre. Los actuales están hechos por síntesis: si consiguen sonidos reales, se notará la mejora.
+
+**Un Memo NASA.** En `srcipts/Memos.gd`. `POR_ID` asigna un memo a una decisión concreta y `POR_TEMA` lo asigna por palabra del tema.
+
+**Una decisión o sus efectos.** En `srcipts/Eventos.gd` (es de Giovanny: avísale).
+
+**Los minijuegos.** En `srcipts/Minijuego.gd`:
+- `DURACION` → cuántos segundos dura cada uno.
+- `tipo_para(tema)` → qué minijuego le toca a cada tipo de emergencia.
+- Cada minijuego tiene su función de dibujo (`_dibujar_sellar`, `_dibujar_alinear`, `_dibujar_secuencia`, `_dibujar_valvula`).
+
+Cómo afecta al resultado: el minijuego devuelve una nota de −1 (falló) a 1 (perfecto). `GameManager` usa esa nota **en lugar del azar** al calcular el resultado de la decisión (variable `habilidad_manual`).
+
+**La pantalla de la misión.** En `srcipts/MisionVisual.gd`. Las funciones `_construir_...` arman cada zona (barra de arriba, rieles, tripulación, centro) y las funciones `_mostrar_...` son las fases del día.
+
+## 6. Regenerar el arte y el audio (opcional)
+
+Los sprites y sonidos nuevos se generan con dos programas de Python que están en `tools/`:
+
+```bash
+python tools/generar_arte.py
 ```
-Final (Control)  ← script Final.gd
-├── Fondo (TextureRect)
-├── Panel (VBoxContainer)
-│   ├── Titulo (Label)
-│   ├── Narrativa (Label)
-│   ├── Tripulacion (HBoxContainer)  ← 4 tarjetas: nombre + estado (vivo/herido/muerto)
-│   ├── Puntaje (Label)
-│   ├── MemoNasa (Label)              ← dato educativo con fuente NASA
-│   └── BotonMenu (Button)
-└── Musica (AudioStreamPlayer)
-```
-
-Esqueleto de `Final.gd`:
-```gdscript
-extends Control
-
-@onready var titulo: Label = $Panel/Titulo
-@onready var narrativa: Label = $Panel/Narrativa
-@onready var puntaje: Label = $Panel/Puntaje
-
-const TITULOS = {
-	"bueno": "MISIÓN CUMPLIDA",
-	"intermedio": "MISIÓN ABORTADA",
-	"malo": "SILENCIO TOTAL",
-}
-
-func _ready():
-	var tipo: String = GameManager.evaluar_final()
-	titulo.text = TITULOS[tipo]
-	puntaje.text = "Puntuación: %d / 1000" % roundi(GameManager.puntaje()["total"])
-	for id in GameManager.TRIPULANTES:
-		print(GameManager.NOMBRES_TRIPULANTE[id], ": ", GameManager.estado(id))
-	# TODO: cambiar fondo, colores y música según 'tipo'
-
-func _on_boton_menu_pressed():
-	GameManager.nueva_partida()
-	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+```bash
+python tools/generar_audio.py
 ```
 
-**Truco para probar sin jugar 14 días:** en `_ready()`, temporalmente, fuerza el final:
-```gdscript
-GameManager.forzar_final = "malo"   # bórralo antes de hacer commit
-```
+Necesitan `pip install pillow numpy`. **Ojo:** al correrlos se vuelven a escribir todos los PNG y WAV generados. Si reemplazaste alguno a mano, guárdalo aparte antes.
 
-### Paso 3 — Conectarlo con la misión (coordinar con Giovanny)
-Hoy `Mission.gd` muestra el final en su función `_ir_al_final()`. Cuando tu escena esté lista, el cambio es una línea en esa función:
-```gdscript
-get_tree().change_scene_to_file("res://scenes/final.tscn")
-```
-Acuérdalo con él antes de tocar su archivo.
+## 7. Probar el juego automáticamente (opcional)
 
----
+`tools/probar_juego.gd` juega una partida solo y guarda capturas. Sirve para comprobar que nada se rompió después de un cambio. Las instrucciones están al inicio de ese archivo.
 
-## 7. Cómo usar los datos de la NASA en tu parte
+## 8. Datos de la NASA que usa el juego
 
-Las referencias del reto:
-- **Crew Systems**: https://www.nasa.gov/reference/crew-systems/
-- **Habitability Functions Vol. 2 (cap. 7)**: https://www.nasa.gov/reference/7-0-habit-ability-functions-vol-2/
+- Agua: 2,5 L para beber + 0,4 L de higiene por astronauta al día → 162,4 L para 4 personas y 14 días.
+- Comida: 3.035 kcal por astronauta al día → 169.960 kcal.
+- Referencias: [Crew Systems](https://www.nasa.gov/reference/crew-systems/) y [Habitability Functions Vol. 2](https://www.nasa.gov/reference/7-0-habit-ability-functions-vol-2/). Los demás enlaces están en `srcipts/Memos.gd` y en el botón "Referencias NASA" del menú.
 
-Idea: en cada pantalla de final, un **"Memo NASA"** que explique la ciencia detrás de lo que pasó, por ejemplo:
-- Final bueno → por qué el retorno libre ahorra propelente / cuánta agua y comida necesita un astronauta (2,5 L de hidratación y ~3.035 kcal al día, los datos que ya usa el GDD).
-- Final malo por CO₂ → qué es la hipercapnia y por qué el reposo reduce el CO₂ exhalado.
-- Final intermedio → por qué la NASA exige redundancia en soporte vital (ECLSS) antes que carga científica.
+## 9. Pendientes sugeridos
 
-Lee la página, escribe el memo **con tus palabras** y pon el enlace. Eso suma mucho con el jurado porque demuestra que el juego enseña.
-
----
-
-## 8. Checklist de tu parte
-
-- [ ] Godot instalado (misma versión que Giovanny) y proyecto abierto y jugado una vez
-- [ ] Tutorial "Tu primer juego 2D" (hasta HUD)
-- [ ] Menú principal funcionando (Iniciar / Referencias / Salir)
-- [ ] Menú como escena principal (avisado a Giovanny)
-- [ ] Escena `final.tscn` mostrando los 3 finales distintos
-- [ ] Memo NASA en cada final con fuente
-- [ ] Conectada desde `Mission.gd` (acordado con Giovanny)
-- [ ] Fondo, música y efectos (extra)
+- [ ] Escuchar todos los sonidos y cambiar los que no gusten.
+- [ ] Revisar el equilibrio: con el Paquete B la electricidad queda muy justa.
+- [ ] Decidir qué hacer con `srcipts/sala_mando.tscn` y `scenes/ship_designer.tscn`, que hoy no se usan.
+- [ ] Unir las ramas del equipo en `main` con un Pull Request.

@@ -314,14 +314,9 @@ func _construir_informe() -> void:
 		e.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(e)
 	izq.add_child(Estilo.nuevo_texto("DATOS DE LA MISIÓN", 16, Estilo.C_CIAN))
-	var datos: Array = [
-		"Configuración de la Fase 0: " + GameManager.plan_nombre,
-		"Día alcanzado: %d de %d" % [GameManager.dia_actual, GameManager.DIAS_TOTALES],
-		"Decisiones con resultado bueno: %d de %d" % [GameManager.decisiones_buenas, GameManager.decisiones_totales],
-		"Progreso científico: %d %% (tope de tu plan: %d %%)" % [roundi(GameManager.ciencia), roundi(GameManager.ciencia_max)],
-	]
-	for d in datos:
-		izq.add_child(Estilo.nuevo_texto("- " + String(d), 16, Estilo.C_TEXTO))
+	izq.add_child(Estilo.nuevo_texto("%s  ·  Día %d de %d  ·  Decisiones buenas: %d de %d  ·  Ciencia: %d %%" % [
+		GameManager.plan_nombre, GameManager.dia_actual, GameManager.DIAS_TOTALES,
+		GameManager.decisiones_buenas, GameManager.decisiones_totales, roundi(GameManager.ciencia)], 16, Estilo.C_TEXTO))
 
 	# --- Columna derecha: puntuación y memo ---
 	var der = VBoxContainer.new()
@@ -346,7 +341,7 @@ func _construir_informe() -> void:
 		valor.custom_minimum_size = Vector2(96, 0)
 		valor.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		linea.add_child(valor)
-	etq_total = Estilo.nuevo_texto("TOTAL: 0 / 1000", 48, Estilo.C_AMARILLO)
+	etq_total = Estilo.nuevo_texto("TOTAL: 0 / 1000", 32, Estilo.C_AMARILLO, false)
 	etq_total.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	der.add_child(etq_total)
 
@@ -385,9 +380,7 @@ func _construir_informe() -> void:
 	var menu: Button = Estilo.nuevo_boton("MENÚ PRINCIPAL", 24, 340, 56)
 	menu.pressed.connect(_ir_al_menu)
 	botones.add_child(menu)
-	var semilla: Label = Estilo.nuevo_texto("Semilla de esta partida: %d" % GameManager.semilla, 16, Color(0.45, 0.52, 0.64))
-	semilla.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(semilla)
+	panel.tooltip_text = "Semilla de esta partida: %d (sirve para repetirla y depurar errores)" % GameManager.semilla
 
 func _abrir_informe() -> void:
 	bloque_titulo.visible = false

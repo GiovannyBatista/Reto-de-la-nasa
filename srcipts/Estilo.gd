@@ -181,7 +181,42 @@ static func nuevo_boton(texto: String, tam: int = 24, ancho: int = 0, alto: int 
 	b.add_theme_font_size_override("font_size", tam)
 	b.custom_minimum_size = Vector2(ancho, alto)
 	b.focus_mode = Control.FOCUS_ALL
+	animar_hover(b)
 	return b
+
+# ---------------------------------------------------------------
+# Animaciones pequeñas (dan vida a la interfaz)
+# ---------------------------------------------------------------
+# El control crece un poquito cuando el ratón pasa por encima
+static func animar_hover(c: Control, factor: float = 1.04) -> void:
+	c.resized.connect(func(): c.pivot_offset = c.size * 0.5)
+	c.mouse_entered.connect(func():
+		c.pivot_offset = c.size * 0.5
+		c.create_tween().tween_property(c, "scale", Vector2(factor, factor), 0.08))
+	c.mouse_exited.connect(func():
+		c.create_tween().tween_property(c, "scale", Vector2(1, 1), 0.10))
+
+# Aparece con un "salto": empieza pequeño y transparente y crece hasta su tamaño
+static func saltar(c: Control, retraso: float = 0.0, desde: float = 0.6) -> void:
+	c.modulate.a = 0.0
+	var tw: Tween = c.create_tween()
+	tw.tween_interval(maxf(retraso, 0.001))
+	tw.tween_callback(func():
+		c.pivot_offset = c.size * 0.5
+		c.scale = Vector2(desde, desde))
+	tw.set_parallel(true)
+	tw.tween_property(c, "modulate:a", 1.0, 0.12)
+	tw.tween_property(c, "scale", Vector2(1, 1), 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+# Tiembla hacia los lados (golpe, daño, error)
+static func sacudir(c: CanvasItem, fuerza: float = 8.0, duracion: float = 0.35) -> void:
+	var origen: Vector2 = c.position
+	var tw: Tween = c.create_tween()
+	var pasos: int = 6
+	for i in pasos:
+		var lado: float = fuerza * (1.0 - float(i) / float(pasos)) * (1.0 if i % 2 == 0 else -1.0)
+		tw.tween_property(c, "position:x", origen.x + lado, duracion / float(pasos))
+	tw.tween_property(c, "position:x", origen.x, 0.03)
 
 # Botón oscuro tipo pantalla de consola (para opciones que se encienden y apagan)
 static func estilo_holo(b: Button, color: Color = C_CIAN) -> void:
@@ -283,21 +318,39 @@ static func nuevo_retrato(id: String, estado: String = "normal", escala: int = 2
 	marco.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	marco.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	marco.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# "hueco" es una ventana fija; la imagen se puede mover dentro (para que el astronauta flote)
+	var hueco = Control.new()
+	hueco.custom_minimum_size = Vector2(48 * escala, 48 * escala)
+	hueco.clip_contents = true
+	hueco.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	marco.add_child(hueco)
 	var img = TextureRect.new()
 	img.texture = textura_retrato(id, estado)
-	img.custom_minimum_size = Vector2(48 * escala, 48 * escala)
+	img.size = Vector2(48 * escala, 48 * escala)
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	img.stretch_mode = TextureRect.STRETCH_SCALE
 	img.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	marco.add_child(img)
+	hueco.add_child(img)
 	marco.set_meta("imagen", img)
 	marco.set_meta("id", id)
+	marco.set_meta("estado", estado)
 	return marco
 
 static func cambiar_retrato(marco: PanelContainer, estado: String) -> void:
+	if String(marco.get_meta("estado", "")) == estado:
+		return
+	marco.set_meta("estado", estado)
 	var img: TextureRect = marco.get_meta("imagen")
 	img.texture = textura_retrato(String(marco.get_meta("id")), estado)
+
+# Mueve la imagen dentro del marco (en microgravedad todos flotan un poco)
+static func flotar_retrato(marco: PanelContainer, tiempo: float, desfase: float = 0.0) -> void:
+	var img: TextureRect = marco.get_meta("imagen")
+	if String(marco.get_meta("estado", "")) == "perdido":
+		img.position = Vector2.ZERO
+		return
+	img.position = Vector2(roundf(sin(tiempo * 0.7 + desfase) * 2.0), roundf(sin(tiempo * 1.3 + desfase * 2.0) * 3.0))
 
 # ---------------------------------------------------------------
 # Animaciones de planetas (hoja de 24 cuadros de 96x96)

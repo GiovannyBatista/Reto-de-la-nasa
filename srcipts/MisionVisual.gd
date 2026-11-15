@@ -1,21 +1,28 @@
 extends Control
 # Pantalla GRÁFICA de la misión (los 14 días).
 #
-# Las reglas del juego NO están aquí: siguen en GameManager.gd y Eventos.gd. Este script solo dibuja:
-#   - la cabina con la ventana al espacio (la Tierra y la Luna cambian de tamaño según el día)
-#   - el panel de la nave (barras con iconos) y el de la tripulación (retratos que cambian de expresión)
-#   - las decisiones como tarjetas, con el retrato del responsable y un temporizador
-#   - el resultado con fichas de colores (qué subió y qué bajó) y el Memo NASA
+# Las reglas del juego NO están aquí: siguen en GameManager.gd y Eventos.gd. Este script solo dibuja.
 #
-# El ciclo de cada día es el mismo de Mission.gd (la versión antigua, de solo texto):
-#   órdenes del día -> registro (consumo y eventos) -> decisión 1 -> decisión 2 -> resumen -> día siguiente
+# Cómo está acomodada la pantalla (pensada para mostrar poco texto):
+#   ARRIBA     -> día, los 5 recursos vitales (icono + barra + número), mapa del viaje y alarma
+#   IZQUIERDA  -> riel de "sistemas": casco, ciencia, datos, cabina, filtros de CO2 y radio
+#   DERECHA    -> las órdenes activas de hoy
+#   ABAJO      -> la tripulación: retrato (cambia de expresión) + 3 barritas (salud, estrés, hambre)
+#   CENTRO     -> la ventana al espacio y, encima, el panel de lo que está pasando
+#
+# Ciclo de cada día:
+#   órdenes -> consumo del día -> aviso -> decisión 1 -> (minijuego de reparación) -> resultado
+#           -> aviso -> decisión 2 -> resultado -> fin del día -> día siguiente
+#
+# Los detalles (nombres, números exactos) salen al dejar el ratón quieto sobre cada cosa.
 
 const Estilo = preload("res://srcipts/Estilo.gd")
 const FondoEspacio = preload("res://srcipts/FondoEspacio.gd")
 const Memos = preload("res://srcipts/Memos.gd")
+const Minijuego = preload("res://srcipts/Minijuego.gd")
 
 const VITALES: Array = [["agua", "Agua"], ["comida", "Comida"], ["oxigeno", "Oxígeno"], ["electricidad", "Electricidad"], ["combustible", "Combustible"]]
-const SECUNDARIAS: Array = [["integridad", "Integridad"], ["ciencia", "Ciencia"], ["datos", "Memoria de datos"]]
+const SISTEMAS: Array = [["integridad", "Casco"], ["ciencia", "Ciencia"], ["datos", "Datos"], ["temperatura", "Cabina"], ["filtros", "CO2"], ["enlace", "Radio"]]
 const RACIONES: Array = ["completa", "reducida", "minima"]
 const INSTRUMENTOS: Array = ["apagados", "basicos", "todos"]
 const HIGIENES: Array = ["normal", "suspendida"]
@@ -27,44 +34,46 @@ const NOMBRE_ORDEN: Dictionary = {
 const TIER_TEXTO: Dictionary = {"bueno": "BUENO", "intermedio": "INTERMEDIO", "malo": "MALO"}
 const ETQ_STAT: Dictionary = {"salud": "Salud", "estres": "Estrés", "hambre": "Hambre", "confianza": "Confianza"}
 const UNIDAD: Dictionary = {"temperatura": " °C", "filtros": ""}
+# En las fichas de cambios, los 5 recursos vitales van solo con su icono; estos otros llevan nombre corto
+const NOMBRE_FICHA: Dictionary = {"integridad": "Casco", "datos": "Datos", "ciencia": "Ciencia", "temperatura": "Cabina", "filtros": "Filtros"}
 const RUTA_CABINA: String = "res://scenes/TileMaps/2x/cabina trasparente.png"
+const ANCHO_PANEL: float = 1240.0
 
-# --- Nodos del fondo ---
+# --- Fondo ---
 var fondo: Control
 var luz_alerta: TextureRect
 
 # --- Barra superior ---
 var etq_dia: Label
-var etq_acto: Label
+var etq_tramo: Label
+var medidores: Dictionary = {}        # clave -> {barra, valor, icono, caja}
 var trayectoria: Control
 var icono_alarma: TextureRect
 var etq_alarma: Label
 var boton_sonido: TextureButton
-var tex_tierra: Texture2D = Estilo.icono("tierra")      # se guardan aquí para que no se liberen de la memoria
+var tex_tierra: Texture2D = Estilo.icono("tierra")      # guardadas aquí para que no se liberen de la memoria
 var tex_luna: Texture2D = Estilo.icono("luna")
 var tex_nave: Texture2D = Estilo.icono("orion_mini")
 
-# --- Panel de la nave ---
-var filas: Dictionary = {}            # clave -> {barra, valor, nombre, icono}
-var etq_temperatura: Label
-var etq_filtros: Label
-var etq_enlace: Label
-var etq_avisos: Label
+# --- Rieles laterales ---
+var pastillas: Dictionary = {}        # clave -> {panel, valor}
 var iconos_orden: Dictionary = {}     # racion/instrumentos/higiene -> TextureRect
-var marca_meta: ColorRect
+var etq_avisos: Label
 
-# --- Panel de la tripulación ---
-var tarjetas: Dictionary = {}         # id -> {panel, retrato, insignia, confianza, salud, estres, hambre}
+# --- Tripulación ---
+var tarjetas: Dictionary = {}         # id -> {panel, retrato, insignia, aviso, salud, estres, hambre}
+var _golpes: Dictionary = {}          # id -> segundos de temblor que le quedan al retrato
 
 # --- Centro ---
 var centro: VBoxContainer
 var banner: PanelContainer
-var etq_banner_dia: Label
-var etq_banner_sub: Label
+var etq_banner: Label
 var espaciador: Control
 var panel_config: PanelContainer
+var etq_consejo: Label
 var botones_orden: Dictionary = {}    # grupo -> {opcion -> Button}
-var pistas_orden: Dictionary = {}     # grupo -> Label
+var nombres_orden: Dictionary = {}    # grupo -> Label con el nombre de la opción elegida
+var pistas_orden: Dictionary = {}     # grupo -> Label con lo que hace
 var seleccion: Dictionary = {"racion": "completa", "instrumentos": "basicos", "higiene": "normal"}
 var panel_central: PanelContainer
 var cabecera: VBoxContainer
@@ -73,9 +82,15 @@ var cuerpo: VBoxContainer
 var pie: HBoxContainer
 var barra_tiempo: ProgressBar
 var etq_tiempo: Label
+var icono_reloj: TextureRect
+var minijuego: Control
 
 # --- Capas encima de todo ---
 var capa_flotante: Control
+var anuncio: Control
+var anuncio_banda: ColorRect
+var anuncio_titulo: Label
+var anuncio_sub: Label
 var velo_dia: ColorRect
 var etq_velo_dia: Label
 var etq_velo_acto: Label
@@ -91,18 +106,22 @@ var tiempo_restante: float = 0.0
 var reloj_activo: bool = false
 var snap_dia: Dictionary = {}
 var siguiente: String = ""
-var _mostrado: Dictionary = {}        # último valor dibujado de cada barra (para animar los cambios)
+var nota_reparacion: float = NAN       # resultado del último minijuego (NAN = no hubo)
+var _mostrado: Dictionary = {}         # último valor dibujado de cada barra (para animar los cambios)
 var _alarmas_antes: int = 0
 var _en_alerta: bool = false
 var _destello: float = 0.0
 var _ultimo_tic: int = -1
 var _ajuste_id: int = 0
+var _paso_id: int = 0
+var _dia_mapa: float = 1.0
 var _t: float = 0.0
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = Estilo.tema()
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_dia_mapa = float(GameManager.dia_actual)
 	_construir_fondo()
 	_construir_hud()
 	_construir_capas()
@@ -164,47 +183,55 @@ func _construir_hud() -> void:
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	margen.add_child(col)
 	col.add_child(_construir_barra_superior())
-	var fila = HBoxContainer.new()
-	fila.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	fila.add_theme_constant_override("separation", 10)
-	fila.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	col.add_child(fila)
-	fila.add_child(_construir_panel_nave())
-	fila.add_child(_construir_centro())
-	fila.add_child(_construir_panel_tripulacion())
+	var medio = HBoxContainer.new()
+	medio.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	medio.add_theme_constant_override("separation", 10)
+	medio.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(medio)
+	medio.add_child(_construir_riel_sistemas())
+	medio.add_child(_construir_centro())
+	medio.add_child(_construir_riel_ordenes())
+	col.add_child(_construir_tripulacion())
 
 func _subtitulo(texto: String, color: Color = Estilo.C_CIAN) -> Label:
 	return Estilo.nuevo_texto(texto, 16, color)
 
-# --- Barra superior: día, acto, mapa del viaje y alarma ---
+# --- Barra superior: día, recursos vitales, mapa del viaje y alarma ---
 func _construir_barra_superior() -> PanelContainer:
 	var p: PanelContainer = Estilo.nuevo_panel(Estilo.C_PANEL, Estilo.C_BORDE, 8)
 	var h = HBoxContainer.new()
-	h.add_theme_constant_override("separation", 18)
+	h.add_theme_constant_override("separation", 14)
 	p.add_child(h)
 
+	var bloque_dia = VBoxContainer.new()
+	bloque_dia.add_theme_constant_override("separation", -4)
+	bloque_dia.custom_minimum_size = Vector2(196, 0)
+	h.add_child(bloque_dia)
 	etq_dia = Estilo.nuevo_texto("DÍA 1/14", 32, Estilo.C_AMARILLO, false)
-	etq_dia.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	h.add_child(etq_dia)
-	etq_acto = Estilo.nuevo_texto("", 16, Estilo.C_CIAN, false)
-	etq_acto.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	etq_acto.custom_minimum_size = Vector2(250, 0)
-	h.add_child(etq_acto)
+	bloque_dia.add_child(etq_dia)
+	etq_tramo = Estilo.nuevo_texto("", 16, Estilo.C_CIAN, false)
+	bloque_dia.add_child(etq_tramo)
+
+	for par in VITALES:
+		h.add_child(_medidor(String(par[0]), String(par[1])))
 
 	trayectoria = Control.new()
 	trayectoria.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	trayectoria.custom_minimum_size = Vector2(300, 48)
+	trayectoria.custom_minimum_size = Vector2(200, 48)
 	trayectoria.tooltip_text = "Mapa del viaje: Tierra - Luna - Tierra"
 	trayectoria.draw.connect(_dibujar_trayectoria)
 	h.add_child(trayectoria)
 
+	var caja_alarma = HBoxContainer.new()
+	caja_alarma.add_theme_constant_override("separation", 4)
+	caja_alarma.mouse_filter = Control.MOUSE_FILTER_STOP
+	h.add_child(caja_alarma)
 	icono_alarma = Estilo.nuevo_icono("alarma", 32)
-	h.add_child(icono_alarma)
-	etq_alarma = Estilo.nuevo_texto("SIN ALARMAS", 16, Estilo.C_VERDE, false)
+	caja_alarma.add_child(icono_alarma)
+	etq_alarma = Estilo.nuevo_texto("0", 24, Estilo.C_VERDE, false)
 	etq_alarma.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	etq_alarma.custom_minimum_size = Vector2(150, 0)
-	etq_alarma.mouse_filter = Control.MOUSE_FILTER_STOP
-	h.add_child(etq_alarma)
+	etq_alarma.custom_minimum_size = Vector2(22, 0)
+	caja_alarma.add_child(etq_alarma)
 
 	boton_sonido = TextureButton.new()
 	boton_sonido.ignore_texture_size = true
@@ -216,7 +243,7 @@ func _construir_barra_superior() -> PanelContainer:
 	h.add_child(boton_sonido)
 	_pintar_sonido()
 
-	var menu: Button = Estilo.nuevo_boton("MENÚ", 16, 90, 40)
+	var menu: Button = Estilo.nuevo_boton("MENÚ", 16, 84, 40)
 	Estilo.estilo_holo(menu)
 	menu.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	menu.focus_mode = Control.FOCUS_NONE
@@ -224,10 +251,44 @@ func _construir_barra_superior() -> PanelContainer:
 	h.add_child(menu)
 	return p
 
+# Medidor de un recurso vital: icono + número + barra (sin nombre: sale al dejar el ratón encima)
+func _medidor(clave: String, nombre: String) -> HBoxContainer:
+	var h = HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	h.mouse_filter = Control.MOUSE_FILTER_STOP
+	h.tooltip_text = "%s\nSi llega a 0, la misión termina. Por debajo de %d %% salta la alarma." % [nombre, int(GameManager.UMBRAL_ALARMA)]
+	if clave == "comida":
+		h.tooltip_text = "Comida\nSin comida, la tripulación pierde salud cada día. Por debajo de %d %% salta la alarma." % int(GameManager.UMBRAL_ALARMA)
+	var ic: TextureRect = Estilo.nuevo_icono(clave, 40)
+	h.add_child(ic)
+	var v = VBoxContainer.new()
+	v.add_theme_constant_override("separation", 0)
+	v.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(v)
+	var valor: Label = Estilo.nuevo_texto("100", 24, Estilo.C_VERDE, false)
+	v.add_child(valor)
+	var barra: ProgressBar = Estilo.nueva_barra(Estilo.C_VERDE, 10)
+	barra.custom_minimum_size = Vector2(92, 10)
+	v.add_child(barra)
+	medidores[clave] = {"barra": barra, "valor": valor, "icono": ic, "caja": h}
+	return h
+
+# Dónde va la navecita del mapa según el día (acepta decimales para que se mueva suave)
+func _pos_mapa(dia: float, a: float, b: float, cy: float, x_luna: float) -> Vector2:
+	if dia <= 4.0:
+		return Vector2(lerpf(a, b, (dia - 1.0) / 4.0), cy)
+	if dia < 5.0:
+		return Vector2(lerpf(lerpf(a, b, 0.75), x_luna - 26.0, dia - 4.0), cy)
+	if dia <= 9.0:
+		var ang: float = _t * 0.9
+		return Vector2(x_luna + cos(ang) * 26.0, cy + sin(ang) * 15.0)     # en órbita alrededor de la Luna
+	return Vector2(lerpf(b, a, (dia - 9.0) / 5.0), cy)
+
 func _dibujar_trayectoria() -> void:
 	var c: Control = trayectoria
 	var cy: float = c.size.y * 0.5
-	var x0: float = 26.0
+	var x0: float = 24.0
 	var x1: float = c.size.x - 30.0
 	var x: float = x0 + 30.0
 	while x < x1 - 30.0:
@@ -235,172 +296,126 @@ func _dibujar_trayectoria() -> void:
 		x += 12.0
 	c.draw_texture_rect(tex_tierra, Rect2(x0 - 20.0, cy - 20.0, 40.0, 40.0), false)
 	c.draw_texture_rect(tex_luna, Rect2(x1 - 20.0, cy - 20.0, 40.0, 40.0), false)
-	var dia: int = GameManager.dia_actual
-	var a: float = x0 + 40.0
-	var b: float = x1 - 40.0
-	var pos: Vector2 = Vector2.ZERO
-	var hacia_derecha: bool = true
-	if dia <= 4:
-		pos = Vector2(lerpf(a, b, float(dia - 1) / 4.0), cy)
-	elif dia <= 9:
-		var ang: float = _t * 0.9
-		pos = Vector2(x1 + cos(ang) * 26.0, cy + sin(ang) * 15.0)     # en órbita alrededor de la Luna
-		hacia_derecha = sin(ang) < 0.0
-	else:
-		pos = Vector2(lerpf(b, a, float(dia - 9) / 5.0), cy)
-		hacia_derecha = false
+	var pos: Vector2 = _pos_mapa(_dia_mapa, x0 + 40.0, x1 - 40.0, cy, x1)
+	var hacia_derecha: bool = _dia_mapa < 5.0
+	if _dia_mapa >= 5.0 and _dia_mapa <= 9.0:
+		hacia_derecha = sin(_t * 0.9) < 0.0
 	pos.y += sin(_t * 2.2) * 2.0
-	var nave: Texture2D = tex_nave
 	if hacia_derecha:
-		c.draw_texture_rect(nave, Rect2(pos.x - 16.0, pos.y - 16.0, 32.0, 32.0), false)
+		c.draw_texture_rect(tex_nave, Rect2(pos.x - 16.0, pos.y - 16.0, 32.0, 32.0), false)
 	else:
-		c.draw_texture_rect(nave, Rect2(pos.x + 16.0, pos.y - 16.0, -32.0, 32.0), false)
+		c.draw_texture_rect(tex_nave, Rect2(pos.x + 16.0, pos.y - 16.0, -32.0, 32.0), false)
 
-# --- Panel izquierdo: la nave ---
-func _construir_panel_nave() -> PanelContainer:
-	var p: PanelContainer = Estilo.nuevo_panel(Estilo.C_PANEL, Estilo.C_BORDE, 12)
-	p.custom_minimum_size = Vector2(320, 0)
+# --- Riel izquierdo: sistemas de la nave (pastillas pequeñas) ---
+func _construir_riel_sistemas() -> VBoxContainer:
 	var v = VBoxContainer.new()
+	v.custom_minimum_size = Vector2(140, 0)
 	v.add_theme_constant_override("separation", 6)
-	p.add_child(v)
-	var t: Label = Estilo.nuevo_texto("NAVE ORIÓN", 24, Estilo.C_CIAN)
-	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(t)
-	for par in VITALES:
-		v.add_child(_fila_recurso(String(par[0]), String(par[1]), 32, 14))
-	v.add_child(HSeparator.new())
-	for par in SECUNDARIAS:
-		v.add_child(_fila_recurso(String(par[0]), String(par[1]), 24, 10))
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for par in SISTEMAS:
+		v.add_child(_pastilla(String(par[0]), String(par[1])))
+	return v
 
-	# Marca de la meta de ciencia (70 %) sobre la barra
-	var barra_ciencia: ProgressBar = filas["ciencia"]["barra"]
-	marca_meta = ColorRect.new()
-	marca_meta.color = Estilo.C_AMARILLO
-	marca_meta.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	marca_meta.anchor_left = GameManager.CIENCIA_FINAL_BUENO / 100.0
-	marca_meta.anchor_right = GameManager.CIENCIA_FINAL_BUENO / 100.0
-	marca_meta.anchor_bottom = 1.0
-	marca_meta.offset_left = -1
-	marca_meta.offset_right = 1
-	barra_ciencia.add_child(marca_meta)
-	filas["ciencia"]["fila"].tooltip_text = "La marca amarilla es la meta del final bueno: %d %% de ciencia." % int(GameManager.CIENCIA_FINAL_BUENO)
-
-	v.add_child(HSeparator.new())
-	var estado = GridContainer.new()
-	estado.columns = 2
-	estado.add_theme_constant_override("h_separation", 8)
-	estado.add_theme_constant_override("v_separation", 2)
-	v.add_child(estado)
-	estado.add_child(Estilo.nuevo_icono("temperatura", 24))
-	etq_temperatura = Estilo.nuevo_texto("", 16)
-	estado.add_child(etq_temperatura)
-	estado.add_child(Estilo.nuevo_icono("filtros", 24))
-	etq_filtros = Estilo.nuevo_texto("", 16)
-	estado.add_child(etq_filtros)
-	estado.add_child(Estilo.nuevo_icono("enlace", 24))
-	etq_enlace = Estilo.nuevo_texto("", 16)
-	estado.add_child(etq_enlace)
-	etq_avisos = Estilo.nuevo_texto("", 16, Estilo.C_NARANJA)
-	etq_avisos.visible = false
-	v.add_child(etq_avisos)
-
-	v.add_child(HSeparator.new())
-	v.add_child(_subtitulo("ÓRDENES DE HOY"))
-	var ordenes = HBoxContainer.new()
-	ordenes.add_theme_constant_override("separation", 12)
-	ordenes.alignment = BoxContainer.ALIGNMENT_CENTER
-	v.add_child(ordenes)
-	for grupo in ["racion", "instrumentos", "higiene"]:
-		var ic: TextureRect = Estilo.nuevo_icono("racion_completa", 40)
-		ic.mouse_filter = Control.MOUSE_FILTER_STOP
-		ordenes.add_child(ic)
-		iconos_orden[grupo] = ic
-	return p
-
-func _fila_recurso(clave: String, nombre: String, tam_icono: int, alto_barra: int) -> HBoxContainer:
+func _pastilla(clave: String, titulo: String) -> PanelContainer:
+	var p: PanelContainer = Estilo.nuevo_panel(Estilo.C_PANEL, Color(Estilo.C_BORDE, 0.8), 6)
 	var h = HBoxContainer.new()
 	h.add_theme_constant_override("separation", 8)
-	var ic: TextureRect = Estilo.nuevo_icono(clave, tam_icono)
-	h.add_child(ic)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(h)
+	h.add_child(Estilo.nuevo_icono(clave, 32))
 	var v = VBoxContainer.new()
+	v.add_theme_constant_override("separation", -6)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.add_theme_constant_override("separation", 0)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	h.add_child(v)
-	var linea = HBoxContainer.new()
-	v.add_child(linea)
-	var etq: Label = Estilo.nuevo_texto(nombre, 16, Estilo.C_TEXTO, false)
-	etq.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	linea.add_child(etq)
-	var valor: Label = Estilo.nuevo_texto("100 %", 16, Estilo.C_TEXTO, false)
-	linea.add_child(valor)
-	var barra: ProgressBar = Estilo.nueva_barra(Estilo.C_VERDE, alto_barra)
-	v.add_child(barra)
-	filas[clave] = {"barra": barra, "valor": valor, "nombre": etq, "icono": ic, "fila": h}
-	return h
-
-# --- Panel derecho: la tripulación ---
-func _construir_panel_tripulacion() -> PanelContainer:
-	var p: PanelContainer = Estilo.nuevo_panel(Estilo.C_PANEL, Estilo.C_BORDE, 12)
-	p.custom_minimum_size = Vector2(340, 0)
-	var v = VBoxContainer.new()
-	v.add_theme_constant_override("separation", 8)
-	p.add_child(v)
-	var t: Label = Estilo.nuevo_texto("TRIPULACIÓN", 24, Estilo.C_CIAN)
-	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(t)
-	for id in GameManager.TRIPULANTES:
-		v.add_child(_tarjeta_tripulante(String(id)))
+	v.add_child(Estilo.nuevo_texto(titulo, 16, Estilo.C_TEXTO_SUAVE, false))
+	var valor: Label = Estilo.nuevo_texto("", 16, Estilo.C_TEXTO, false)
+	v.add_child(valor)
+	pastillas[clave] = {"panel": p, "valor": valor}
 	return p
 
+# --- Riel derecho: órdenes activas y avisos ---
+func _construir_riel_ordenes() -> VBoxContainer:
+	var v = VBoxContainer.new()
+	v.custom_minimum_size = Vector2(140, 0)
+	v.add_theme_constant_override("separation", 6)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var p: PanelContainer = Estilo.nuevo_panel(Estilo.C_PANEL, Color(Estilo.C_BORDE, 0.8), 8)
+	v.add_child(p)
+	var col = VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(col)
+	var t: Label = Estilo.nuevo_texto("ÓRDENES", 16, Estilo.C_CIAN)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(t)
+	for grupo in ["racion", "instrumentos", "higiene"]:
+		var ic: TextureRect = Estilo.nuevo_icono("racion_completa", 48)
+		ic.mouse_filter = Control.MOUSE_FILTER_STOP
+		ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		col.add_child(ic)
+		iconos_orden[grupo] = ic
+	var caja_avisos: PanelContainer = Estilo.nuevo_panel(Color(0.20, 0.10, 0.03, 0.9), Estilo.C_NARANJA, 6)
+	caja_avisos.visible = false
+	v.add_child(caja_avisos)
+	etq_avisos = Estilo.nuevo_texto("", 16, Estilo.C_NARANJA)
+	etq_avisos.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	caja_avisos.add_child(etq_avisos)
+	return v
+
+# --- Abajo: la tripulación ---
+func _construir_tripulacion() -> HBoxContainer:
+	var h = HBoxContainer.new()
+	h.alignment = BoxContainer.ALIGNMENT_CENTER
+	h.add_theme_constant_override("separation", 10)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for id in GameManager.TRIPULANTES:
+		h.add_child(_tarjeta_tripulante(String(id)))
+	return h
+
 func _tarjeta_tripulante(id: String) -> PanelContainer:
-	var datos: Dictionary = GameManager.tripulantes[id]
 	var color: Color = Estilo.ACENTO[id]
-	var panel: PanelContainer = Estilo.nuevo_panel(Estilo.C_PANEL_CLARO, Color(color, 0.7), 8)
-	panel.tooltip_text = "%s\n%s" % [datos["nombre"], datos["rol"]]
+	var panel: PanelContainer = Estilo.nuevo_panel(Estilo.C_PANEL_CLARO, Color(color, 0.7), 6)
+	panel.custom_minimum_size = Vector2(300, 0)
 	var h = HBoxContainer.new()
 	h.add_theme_constant_override("separation", 10)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(h)
 	var retrato: PanelContainer = Estilo.nuevo_retrato(id, "normal", 2)
 	h.add_child(retrato)
 	var v = VBoxContainer.new()
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.add_theme_constant_override("separation", 1)
+	v.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	v.add_theme_constant_override("separation", 2)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	h.add_child(v)
-	var nombre: Label = Estilo.nuevo_texto(String(datos["nombre"]), 16, color, false)
-	nombre.clip_text = true
-	nombre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.add_child(nombre)
 	var linea = HBoxContainer.new()
+	linea.add_theme_constant_override("separation", 6)
+	linea.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(linea)
+	var nombre: Label = Estilo.nuevo_texto(String(GameManager.NOMBRES_TRIPULANTE[id]), 16, color, false)
+	nombre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	linea.add_child(nombre)
+	var aviso: TextureRect = Estilo.nuevo_icono("confianza", 16)
+	aviso.modulate = Estilo.C_ROJO
+	aviso.visible = false
+	linea.add_child(aviso)
 	var insignia: Label = Estilo.nuevo_texto("ESTABLE", 16, Estilo.C_VERDE, false)
-	insignia.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	linea.add_child(insignia)
-	var ic_conf: TextureRect = Estilo.nuevo_icono("confianza", 16)
-	ic_conf.mouse_filter = Control.MOUSE_FILTER_STOP
-	ic_conf.tooltip_text = "Confianza en tu mando. Si baja de 30, puede ignorar tus órdenes."
-	linea.add_child(ic_conf)
-	var confianza: Label = Estilo.nuevo_texto("70", 16, Estilo.C_AMARILLO, false)
-	linea.add_child(confianza)
-	var tarjeta: Dictionary = {"panel": panel, "retrato": retrato, "insignia": insignia, "confianza": confianza}
+	var tarjeta: Dictionary = {"panel": panel, "retrato": retrato, "insignia": insignia, "aviso": aviso}
 	for par in [["salud", Estilo.C_VERDE], ["estres", Estilo.C_VIOLETA], ["hambre", Estilo.C_NARANJA]]:
 		var f = HBoxContainer.new()
 		f.add_theme_constant_override("separation", 6)
+		f.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.add_child(f)
-		var ic: TextureRect = Estilo.nuevo_icono(String(par[0]), 16)
-		ic.mouse_filter = Control.MOUSE_FILTER_STOP
-		ic.tooltip_text = String(ETQ_STAT[par[0]])
-		f.add_child(ic)
+		f.add_child(Estilo.nuevo_icono(String(par[0]), 16))
 		var barra: ProgressBar = Estilo.nueva_barra(par[1], 10)
 		f.add_child(barra)
-		var valor: Label = Estilo.nuevo_texto("0", 16, Estilo.C_TEXTO_SUAVE, false)
-		valor.custom_minimum_size = Vector2(30, 0)
-		valor.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		f.add_child(valor)
-		tarjeta[par[0]] = {"barra": barra, "valor": valor}
+		tarjeta[par[0]] = {"barra": barra}
 	tarjetas[id] = tarjeta
 	return panel
 
-# --- Centro: título del día, órdenes y panel de decisiones ---
+# --- Centro: título del día, órdenes y panel de lo que pasa ---
 func _construir_centro() -> VBoxContainer:
 	centro = VBoxContainer.new()
 	centro.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -408,18 +423,12 @@ func _construir_centro() -> VBoxContainer:
 	centro.add_theme_constant_override("separation", 8)
 	centro.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	banner = Estilo.nuevo_panel(Color(0.03, 0.05, 0.11, 0.78), Estilo.C_AMARILLO, 10)
+	banner = Estilo.nuevo_panel(Color(0.03, 0.05, 0.11, 0.80), Estilo.C_AMARILLO, 8)
 	banner.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	centro.add_child(banner)
-	var vb = VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 0)
-	banner.add_child(vb)
-	etq_banner_dia = Estilo.nuevo_texto("DÍA 1", 48, Estilo.C_AMARILLO, false)
-	etq_banner_dia.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(etq_banner_dia)
-	etq_banner_sub = Estilo.nuevo_texto("", 16, Estilo.C_TEXTO, false)
-	etq_banner_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vb.add_child(etq_banner_sub)
+	etq_banner = Estilo.nuevo_texto("", 24, Estilo.C_AMARILLO, false)
+	etq_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner.add_child(etq_banner)
 
 	espaciador = Control.new()
 	espaciador.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -430,13 +439,15 @@ func _construir_centro() -> VBoxContainer:
 	centro.add_child(panel_config)
 
 	panel_central = Estilo.nuevo_panel(Color(0.03, 0.05, 0.11, 0.95), Estilo.C_CIAN, 14)
+	panel_central.custom_minimum_size = Vector2(ANCHO_PANEL, 0)
+	panel_central.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	panel_central.visible = false
 	centro.add_child(panel_central)
 	var v = VBoxContainer.new()
-	v.add_theme_constant_override("separation", 10)
+	v.add_theme_constant_override("separation", 8)
 	panel_central.add_child(v)
 	cabecera = VBoxContainer.new()
-	cabecera.add_theme_constant_override("separation", 6)
+	cabecera.add_theme_constant_override("separation", 4)
 	v.add_child(cabecera)
 	scroll = ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -451,65 +462,100 @@ func _construir_centro() -> VBoxContainer:
 	v.add_child(pie)
 	return centro
 
+# Órdenes del día: tres mosaicos con botones de solo icono
 func _construir_config() -> PanelContainer:
-	var p: PanelContainer = Estilo.nuevo_panel(Color(0.03, 0.05, 0.11, 0.93), Estilo.C_CIAN, 14)
+	var p: PanelContainer = Estilo.nuevo_panel(Color(0.03, 0.05, 0.11, 0.93), Estilo.C_CIAN, 12)
+	p.custom_minimum_size = Vector2(ANCHO_PANEL, 0)
+	p.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	var v = VBoxContainer.new()
-	v.add_theme_constant_override("separation", 6)
+	v.add_theme_constant_override("separation", 8)
 	p.add_child(v)
-	var t: Label = Estilo.nuevo_texto("ÓRDENES DEL DÍA", 24, Estilo.C_CIAN)
-	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(t)
-	var sub: Label = Estilo.nuevo_texto("Gastar menos cuida las reservas, pero sube el hambre o el estrés. Tú decides.", 16, Estilo.C_TEXTO_SUAVE)
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(sub)
-	v.add_child(_grupo_orden("racion", "Ración de comida", RACIONES, "racion_"))
-	v.add_child(_grupo_orden("instrumentos", "Instrumentos", INSTRUMENTOS, "instrumentos_"))
-	v.add_child(_grupo_orden("higiene", "Higiene", HIGIENES, "higiene_"))
-	var iniciar: Button = Estilo.nuevo_boton("INICIAR EL DÍA", 32, 440, 64)
+	etq_consejo = Estilo.nuevo_texto("Elige las órdenes de hoy. Gastar menos cuida las reservas, pero sube el hambre o el estrés.", 16, Estilo.C_TEXTO_SUAVE)
+	etq_consejo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(etq_consejo)
+	var fila = HBoxContainer.new()
+	fila.add_theme_constant_override("separation", 10)
+	v.add_child(fila)
+	fila.add_child(_mosaico_orden("racion", "RACIÓN DE COMIDA", RACIONES, "racion_"))
+	fila.add_child(_mosaico_orden("instrumentos", "INSTRUMENTOS", INSTRUMENTOS, "instrumentos_"))
+	fila.add_child(_mosaico_orden("higiene", "HIGIENE", HIGIENES, "higiene_"))
+	var iniciar: Button = Estilo.nuevo_boton("INICIAR EL DÍA", 32, 440, 60)
 	iniciar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	iniciar.pressed.connect(_on_iniciar_dia)
 	iniciar.name = "BotonIniciar"
 	v.add_child(iniciar)
 	return p
 
-func _grupo_orden(grupo: String, titulo: String, opciones: Array, prefijo_icono: String) -> VBoxContainer:
+func _mosaico_orden(grupo: String, titulo: String, opciones: Array, prefijo_icono: String) -> PanelContainer:
+	var p: PanelContainer = Estilo.nuevo_panel(Estilo.C_PANEL_CLARO, Color(Estilo.C_BORDE, 0.7), 8)
+	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var v = VBoxContainer.new()
-	v.add_theme_constant_override("separation", 0)
+	v.add_theme_constant_override("separation", 2)
+	p.add_child(v)
+	var t: Label = Estilo.nuevo_texto(titulo, 16, Estilo.C_CIAN)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(t)
 	var h = HBoxContainer.new()
+	h.alignment = BoxContainer.ALIGNMENT_CENTER
 	h.add_theme_constant_override("separation", 8)
 	v.add_child(h)
-	var etq: Label = Estilo.nuevo_texto(titulo, 16, Estilo.C_TEXTO, false)
-	etq.custom_minimum_size = Vector2(170, 0)
-	etq.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	h.add_child(etq)
 	var botones: Dictionary = {}
 	var grupo_botones = ButtonGroup.new()
 	for op in opciones:
 		var b = Button.new()
-		b.text = String(NOMBRE_ORDEN[op])
 		b.icon = Estilo.icono(prefijo_icono + String(op))
+		b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		b.toggle_mode = true
 		b.button_group = grupo_botones
-		b.custom_minimum_size = Vector2(0, 46)
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(72, 56)
 		b.focus_mode = Control.FOCUS_NONE
 		Estilo.estilo_holo(b)
+		Estilo.animar_hover(b, 1.08)
 		b.pressed.connect(_on_orden.bind(grupo, String(op)))
 		h.add_child(b)
 		botones[op] = b
 	botones_orden[grupo] = botones
+	var nombre: Label = Estilo.nuevo_texto("", 16, Estilo.C_AMARILLO)
+	nombre.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(nombre)
+	nombres_orden[grupo] = nombre
 	var pista: Label = Estilo.nuevo_texto("", 16, Estilo.C_VERDE)
-	pista.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	pista.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(pista)
 	pistas_orden[grupo] = pista
-	return v
+	return p
 
-# --- Capas: números flotantes, cambio de día y pausa ---
+# --- Capas: números flotantes, aviso de decisión, cambio de día y pausa ---
 func _construir_capas() -> void:
 	capa_flotante = Control.new()
 	capa_flotante.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	capa_flotante.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(capa_flotante)
+
+	# Aviso que cruza la pantalla antes de cada decisión
+	anuncio = Control.new()
+	anuncio.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	anuncio.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	anuncio.visible = false
+	add_child(anuncio)
+	anuncio_banda = ColorRect.new()
+	anuncio_banda.set_anchors_and_offsets_preset(Control.PRESET_HCENTER_WIDE)
+	anuncio_banda.offset_top = -86
+	anuncio_banda.offset_bottom = 86
+	anuncio_banda.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	anuncio.add_child(anuncio_banda)
+	var va = VBoxContainer.new()
+	va.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	va.alignment = BoxContainer.ALIGNMENT_CENTER
+	va.add_theme_constant_override("separation", 0)
+	va.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	anuncio_banda.add_child(va)
+	anuncio_titulo = Estilo.nuevo_texto("", 64, Color(1, 1, 1), false)
+	anuncio_titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	va.add_child(anuncio_titulo)
+	anuncio_sub = Estilo.nuevo_texto("", 24, Color(1, 1, 1), false)
+	anuncio_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	va.add_child(anuncio_sub)
 
 	velo_dia = ColorRect.new()
 	velo_dia.color = Color(0, 0, 0, 1)
@@ -561,12 +607,12 @@ func _construir_capas() -> void:
 # ===============================================================
 # TEXTOS DEL VIAJE
 # ===============================================================
-func _acto(dia: int) -> Array:
+func _acto(dia: int) -> String:
 	if dia <= 4:
-		return ["ACTO I", "El tránsito y las primeras grietas"]
+		return "ACTO I"
 	if dia <= 10:
-		return ["ACTO II", "La órbita lunar y el punto de quiebre"]
-	return ["ACTO III", "El abismo de regreso"]
+		return "ACTO II"
+	return "ACTO III"
 
 func _tramo(dia: int) -> String:
 	if dia <= 4:
@@ -575,22 +621,22 @@ func _tramo(dia: int) -> String:
 		return "En órbita lunar"
 	if dia <= 13:
 		return "Regreso a la Tierra"
-	return "Reentrada en la atmósfera"
+	return "Reentrada"
 
 # La Tierra y la Luna se ven más grandes o más pequeñas según en qué parte del viaje estamos
 func _actualizar_espacio(duracion: float) -> void:
 	var dia: int = GameManager.dia_actual
 	if dia <= 4:
 		var f: float = float(dia - 1) / 3.0
-		fondo.colocar("tierra", Vector2(0.40, 0.33), lerpf(3.5, 1.0, f), duracion)
-		fondo.colocar("luna", Vector2(0.62, 0.26), lerpf(0.5, 2.0, f), duracion)
+		fondo.colocar("tierra", Vector2(0.40, 0.36), lerpf(3.5, 1.0, f), duracion)
+		fondo.colocar("luna", Vector2(0.62, 0.30), lerpf(0.5, 2.0, f), duracion)
 	elif dia <= 9:
-		fondo.colocar("luna", Vector2(0.50, 0.36), 3.5, duracion)
-		fondo.colocar("tierra", Vector2(0.66, 0.19), 0.5, duracion)
+		fondo.colocar("luna", Vector2(0.50, 0.40), 3.5, duracion)
+		fondo.colocar("tierra", Vector2(0.67, 0.24), 0.5, duracion)
 	else:
 		var f2: float = float(dia - 10) / 4.0
-		fondo.colocar("luna", Vector2(0.38, 0.24), lerpf(2.0, 0.5, f2), duracion)
-		fondo.colocar("tierra", Vector2(0.58, 0.34), lerpf(1.0, 4.0, f2), duracion)
+		fondo.colocar("luna", Vector2(0.38, 0.28), lerpf(2.0, 0.5, f2), duracion)
+		fondo.colocar("tierra", Vector2(0.58, 0.38), lerpf(1.0, 4.0, f2), duracion)
 
 # ===============================================================
 # FASE 1: ÓRDENES DEL DÍA
@@ -599,13 +645,10 @@ func _mostrar_config() -> void:
 	fase = "config"
 	reloj_activo = false
 	var dia: int = GameManager.dia_actual
-	var acto: Array = _acto(dia)
-	etq_banner_dia.text = "DÍA %d DE %d" % [dia, GameManager.DIAS_TOTALES]
-	var sub: String = _tramo(dia)
 	var hito: Dictionary = Eventos.hito_del_dia(dia)
+	banner.visible = not hito.is_empty()
 	if not hito.is_empty():
-		sub = "Hoy: " + String(hito["tema"])
-	etq_banner_sub.text = sub
+		etq_banner.text = "HOY: " + String(hito["tema"]).to_upper()
 
 	seleccion["racion"] = GameManager.racion
 	seleccion["instrumentos"] = GameManager.instrumentos
@@ -616,13 +659,14 @@ func _mostrar_config() -> void:
 			b.set_pressed_no_signal(String(op) == String(seleccion[grupo]))
 			if grupo == "instrumentos":
 				b.disabled = GameManager.instrumentos_bloqueados
-		_pintar_pista(String(grupo))
+			b.tooltip_text = "%s\n%s" % [NOMBRE_ORDEN[op], _efecto_orden(String(grupo), String(op))]
+		_pintar_orden(String(grupo))
+	etq_consejo.visible = (dia == 1)
 
-	banner.visible = true
 	espaciador.visible = true
 	panel_config.visible = true
 	panel_central.visible = false
-	Sonido.musica("musica_contrarreloj" if String(acto[0]) == "ACTO III" else "musica_tension")
+	Sonido.musica("musica_contrarreloj" if _acto(dia) == "ACTO III" else "musica_tension")
 	actualizar_hud(false)
 	var iniciar: Button = panel_config.find_child("BotonIniciar", true, false)
 	if iniciar != null:
@@ -630,31 +674,31 @@ func _mostrar_config() -> void:
 
 func _on_orden(grupo: String, opcion: String) -> void:
 	seleccion[grupo] = opcion
-	_pintar_pista(grupo)
+	_pintar_orden(grupo)
 
-# Explica con números qué hace la opción elegida (los números salen de GameManager)
-func _pintar_pista(grupo: String) -> void:
-	var op: String = String(seleccion[grupo])
-	var texto: String = ""
+# Qué hace cada orden, con los números de GameManager
+func _efecto_orden(grupo: String, op: String) -> String:
 	match grupo:
 		"racion":
-			texto = "Gasto de comida x%s  ·  Hambre %s por día" % [
+			return "Comida x%s  ·  Hambre %s al día" % [
 				str(GameManager.COMIDA_RACION[op]).replace(".", ","), GameManager.signo(float(GameManager.HAMBRE_RACION[op]))]
 		"instrumentos":
 			if GameManager.instrumentos_bloqueados:
-				texto = "Carga científica soltada: los instrumentos ya no funcionan."
-			elif op == "apagados":
-				texto = "Sin gasto extra, pero la ciencia no avanza"
-			else:
-				texto = "Ciencia +%s  ·  Datos +%s  ·  Electricidad -%s por día" % [
-					str(GameManager.CIENCIA_DIA[op]).replace(".", ","), str(GameManager.DATOS_DIA[op]).replace(".", ","),
-					str(GameManager.ELEC_INSTRUMENTOS[op]).replace(".", ",")]
+				return "Carga científica soltada: ya no funcionan"
+			if op == "apagados":
+				return "Sin gasto, pero la ciencia no avanza"
+			return "Ciencia +%s  ·  Electricidad -%s al día" % [
+				str(GameManager.CIENCIA_DIA[op]).replace(".", ","), str(GameManager.ELEC_INSTRUMENTOS[op]).replace(".", ",")]
 		"higiene":
 			if op == "normal":
-				texto = "Consumo de agua normal"
-			else:
-				texto = "Ahorra 15 %% de agua  ·  Estrés +%d por día para todos" % int(GameManager.ESTRES_AISLAMIENTO_HIGIENE)
-	pistas_orden[grupo].text = texto
+				return "Consumo de agua normal"
+			return "Agua -15 %%  ·  Estrés +%d al día" % int(GameManager.ESTRES_AISLAMIENTO_HIGIENE)
+	return ""
+
+func _pintar_orden(grupo: String) -> void:
+	var op: String = String(seleccion[grupo])
+	nombres_orden[grupo].text = String(NOMBRE_ORDEN[op])
+	pistas_orden[grupo].text = _efecto_orden(grupo, op)
 
 func _on_iniciar_dia() -> void:
 	if fase != "config":
@@ -670,25 +714,24 @@ func _on_iniciar_dia() -> void:
 	_mostrar_registro(lineas, snap_dia, despues)
 
 # ===============================================================
-# FASE 2: REGISTRO DEL DÍA (consumo automático y eventos por estrés)
+# FASE 2: CONSUMO DEL DÍA (automático) Y NOVEDADES
 # ===============================================================
 func _mostrar_registro(lineas: Array, antes: Dictionary, despues: Dictionary) -> void:
 	fase = "registro"
+	_paso_id += 1
 	_abrir_panel(Estilo.C_CIAN)
-	var t: Label = Estilo.nuevo_texto("REGISTRO DEL DÍA %d" % GameManager.dia_actual, 32, Estilo.C_AMARILLO)
-	cabecera.add_child(t)
-	cabecera.add_child(Estilo.nuevo_texto("Esto gastó la nave hoy solo por mantener viva a la tripulación:", 16, Estilo.C_TEXTO_SUAVE))
+	var titulo: Label = Estilo.nuevo_texto("CONSUMO DEL DÍA %d" % GameManager.dia_actual, 24, Estilo.C_AMARILLO)
+	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cabecera.add_child(titulo)
 	_agregar_fichas(cuerpo, _fichas_cambios(antes, despues))
-	var hubo_novedad: bool = false
+	var novedades: int = 0
 	for linea in lineas:
 		var texto: String = String(linea)
 		if texto.begins_with("Consumo diario"):
 			continue
-		if not hubo_novedad:
-			cuerpo.add_child(_subtitulo("NOVEDADES"))
-			hubo_novedad = true
+		novedades += 1
 		var icono: String = "alarma"
-		var color: Color = Estilo.C_TEXTO
+		var color: Color = Estilo.C_AMARILLO
 		if texto.begins_with("Estrés"):
 			icono = "estres"
 			color = Estilo.C_VIOLETA
@@ -698,16 +741,25 @@ func _mostrar_registro(lineas: Array, antes: Dictionary, despues: Dictionary) ->
 		cuerpo.add_child(_aviso(texto, color, icono))
 	if GameManager.hay_final_inmediato():
 		siguiente = "final"
-		_boton_pie("VER EL DESENLACE DE LA MISIÓN")
+		_boton_pie("VER EL DESENLACE")
 	else:
 		siguiente = "decision1"
 		_boton_pie("CONTINUAR")
+		if novedades == 0:
+			# Sin novedades: sigue solo después de un momento (menos clics)
+			var mi_paso: int = _paso_id
+			var espera: Tween = create_tween()
+			espera.tween_interval(2.4)
+			espera.tween_callback(func():
+				if fase == "registro" and mi_paso == _paso_id and not pausa.visible:
+					_on_continuar())
 	_cerrar_panel()
 
 # ===============================================================
 # FASE 3: DECISIONES
 # ===============================================================
-func _mostrar_decision() -> void:
+# Elige la decisión y muestra un aviso grande antes de abrirla
+func _anunciar_decision() -> void:
 	decision_actual = GameManager.elegir_decision(numero_decision)
 	if decision_actual.is_empty():
 		_cerrar_dia()
@@ -716,43 +768,81 @@ func _mostrar_decision() -> void:
 	if d.has("al_iniciar"):
 		GameManager.aplicar_efecto(d["al_iniciar"])
 		actualizar_hud(true)
-	fase = "decision"
+	fase = "aviso"
 	reloj_activo = false
-
+	panel_central.visible = false
+	banner.visible = false
 	var categoria: String = String(d["categoria"])
 	var gravedad: int = int(d["gravedad"])
-	var color: Color = Estilo.C_VERDE
-	var tipo: String = "GESTIÓN DE RECURSOS"
+	var color: Color = _color_decision(d)
+	var titulo: String = "DECISIÓN DE RECURSOS"
 	if categoria == "nave":
-		tipo = "EMERGENCIA EN LA NAVE"
-		color = Estilo.C_ROJO if gravedad >= 3 else Estilo.C_NARANJA
+		titulo = "¡EMERGENCIA!"
 		Sonido.efecto("alarma" if gravedad >= 2 else "aviso")
 		_destello = 1.0 if gravedad >= 2 else 0.4
 	elif categoria == "hito":
-		tipo = "MOMENTO CLAVE DE LA MISIÓN"
-		color = Estilo.C_AMARILLO
+		titulo = "MOMENTO CLAVE"
 		Sonido.efecto("estatica")
 	else:
 		Sonido.efecto("aviso")
+	anuncio_titulo.text = titulo
+	anuncio_sub.text = String(d["tema"]).to_upper()
+	anuncio_banda.color = Color(color.darkened(0.6), 0.94)
+	anuncio_titulo.add_theme_color_override("font_color", color.lerp(Color(1, 1, 1), 0.35))
+	anuncio.visible = true
+	anuncio.modulate.a = 0.0
+	anuncio_banda.pivot_offset = Vector2(size.x * 0.5, 86.0)
+	anuncio_banda.scale = Vector2(1.0, 0.1)
+	var tw: Tween = create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(anuncio, "modulate:a", 1.0, 0.12)
+	tw.tween_property(anuncio_banda, "scale:y", 1.0, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.chain().tween_interval(0.75)
+	tw.chain().tween_property(anuncio, "modulate:a", 0.0, 0.18)
+	tw.chain().tween_callback(func():
+		anuncio.visible = false
+		if fase == "aviso":
+			_mostrar_decision())
+
+func _color_decision(d: Dictionary) -> Color:
+	var categoria: String = String(d["categoria"])
+	if categoria == "nave":
+		return Estilo.C_ROJO if int(d["gravedad"]) >= 3 else Estilo.C_NARANJA
+	if categoria == "hito":
+		return Estilo.C_AMARILLO
+	return Estilo.C_VERDE
+
+func _mostrar_decision() -> void:
+	var d: Dictionary = decision_actual
+	fase = "decision"
+	reloj_activo = false
+	nota_reparacion = NAN
+	var categoria: String = String(d["categoria"])
+	var color: Color = _color_decision(d)
 	_abrir_panel(color)
 
-	# --- Cabecera: tipo, gravedad y número de decisión ---
+	# --- Cabecera: tipo, gravedad, tema y número de decisión ---
+	var tipo: String = "RECURSOS"
+	if categoria == "nave":
+		tipo = "EMERGENCIA"
+	elif categoria == "hito":
+		tipo = "MOMENTO CLAVE"
 	var linea = HBoxContainer.new()
 	linea.add_theme_constant_override("separation", 8)
 	cabecera.add_child(linea)
-	var etiqueta: PanelContainer = Estilo.nuevo_panel(Color(color, 0.18), color, 6)
+	var etiqueta: PanelContainer = Estilo.nuevo_panel(Color(color, 0.18), color, 4)
+	etiqueta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	etiqueta.add_child(Estilo.nuevo_texto(tipo, 16, color, false))
 	linea.add_child(etiqueta)
 	if categoria == "nave":
-		for i in gravedad:
+		for i in int(d["gravedad"]):
 			linea.add_child(Estilo.nuevo_icono("alarma", 24))
-	var relleno = Control.new()
-	relleno.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	linea.add_child(relleno)
-	var cuenta: Label = Estilo.nuevo_texto("DECISIÓN %d DE 2" % numero_decision, 16, Estilo.C_TEXTO_SUAVE, false)
+	var tema: Label = Estilo.nuevo_texto(String(d["tema"]).to_upper(), 24, Estilo.C_TEXTO)
+	tema.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	linea.add_child(tema)
+	var cuenta: Label = Estilo.nuevo_texto("%d DE 2" % numero_decision, 16, Estilo.C_TEXTO_SUAVE, false)
 	cuenta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	linea.add_child(cuenta)
-	cabecera.add_child(Estilo.nuevo_texto(String(d["tema"]).to_upper(), 24, Estilo.C_TEXTO))
 
 	# --- Temporizador (el estrés de Elena puede recortarlo) ---
 	tiempo_total = maxf(5.0, float(d["tiempo_s"]) - GameManager.penal_tiempo)
@@ -762,13 +852,13 @@ func _mostrar_decision() -> void:
 	var fila_tiempo = HBoxContainer.new()
 	fila_tiempo.add_theme_constant_override("separation", 8)
 	cabecera.add_child(fila_tiempo)
+	icono_reloj = Estilo.nuevo_icono("reloj", 32)
+	fila_tiempo.add_child(icono_reloj)
 	if GameManager.modo_sin_temporizador:
-		fila_tiempo.add_child(Estilo.nuevo_icono("reloj", 24))
-		fila_tiempo.add_child(Estilo.nuevo_texto("MODO APRENDIZAJE: decide sin límite de tiempo", 16, Estilo.C_VERDE))
+		fila_tiempo.add_child(Estilo.nuevo_texto("MODO APRENDIZAJE: sin límite de tiempo", 16, Estilo.C_VERDE))
 		barra_tiempo = null
 		etq_tiempo = null
 	else:
-		fila_tiempo.add_child(Estilo.nuevo_icono("reloj", 32))
 		barra_tiempo = Estilo.nueva_barra(Estilo.C_VERDE, 20)
 		barra_tiempo.max_value = tiempo_total
 		barra_tiempo.value = tiempo_total
@@ -786,25 +876,25 @@ func _mostrar_decision() -> void:
 	if GameManager.tripulantes.has(resp):
 		var t: Dictionary = GameManager.tripulantes[resp]
 		var quien = VBoxContainer.new()
-		quien.add_theme_constant_override("separation", 2)
+		quien.add_theme_constant_override("separation", 0)
 		escena.add_child(quien)
-		quien.add_child(Estilo.nuevo_retrato(resp, Estilo.expresion(float(t["salud"]), float(t["estres"])), 3))
+		var retrato: PanelContainer = Estilo.nuevo_retrato(resp, Estilo.expresion(float(t["salud"]), float(t["estres"])), 3)
+		quien.add_child(retrato)
+		Estilo.saltar(retrato, 0.05, 0.8)
 		var nombre: Label = Estilo.nuevo_texto(String(GameManager.NOMBRES_TRIPULANTE[resp]), 16, Estilo.ACENTO[resp], false)
 		nombre.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		quien.add_child(nombre)
-		var rol: Label = Estilo.nuevo_texto("Responsable", 16, Estilo.C_TEXTO_SUAVE, false)
-		rol.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		quien.add_child(rol)
 	var globo: PanelContainer = Estilo.nuevo_panel(Estilo.C_PANEL_CLARO, Color(color, 0.6), 14)
 	globo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	escena.add_child(globo)
 	var vg = VBoxContainer.new()
 	vg.add_theme_constant_override("separation", 8)
+	vg.alignment = BoxContainer.ALIGNMENT_CENTER
 	globo.add_child(vg)
 	vg.add_child(Estilo.nuevo_texto(String(d["texto"]), 16, Estilo.C_TEXTO))
 	var aborto: bool = GameManager.aborto_disponible()
 	if d.get("ruta_aborto", false) and aborto:
-		vg.add_child(_aviso("Tus reservas están en rojo: puedes soltar la carga científica para aligerar la nave.", Estilo.C_ROJO, "alarma"))
+		vg.add_child(_aviso("Reservas en rojo: puedes soltar la carga científica.", Estilo.C_ROJO, "alarma"))
 
 	# --- Opciones (se barajan para que la buena no esté siempre en el mismo lugar) ---
 	var indices: Array = []
@@ -821,10 +911,9 @@ func _mostrar_decision() -> void:
 	var letras: Array = ["A", "B", "C", "D"]
 	for pos in orden_opciones.size():
 		var opcion: Dictionary = d["opciones"][orden_opciones[pos]]
-		cuerpo.add_child(_tarjeta_opcion(String(letras[pos]), opcion, int(orden_opciones[pos]), color))
-	var ayuda: Label = Estilo.nuevo_texto("Elige con el ratón o con las teclas A, B, C", 16, Estilo.C_TEXTO_SUAVE)
-	ayuda.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pie.add_child(ayuda)
+		var tarjeta: PanelContainer = _tarjeta_opcion(String(letras[pos]), opcion, int(orden_opciones[pos]), color)
+		cuerpo.add_child(tarjeta)
+		Estilo.saltar(tarjeta, 0.12 + 0.07 * float(pos), 0.92)
 
 	_resaltar_responsable(resp)
 	actualizar_hud(true)
@@ -833,8 +922,8 @@ func _mostrar_decision() -> void:
 		reloj_activo = not GameManager.modo_sin_temporizador
 
 func _tarjeta_opcion(letra: String, opcion: Dictionary, indice: int, color: Color) -> PanelContainer:
-	var normal: StyleBoxFlat = Estilo.caja(Color(0.06, 0.09, 0.18, 0.96), Color(Estilo.C_BORDE, 0.9), 2, 10)
-	var encima: StyleBoxFlat = Estilo.caja(Color(0.12, 0.18, 0.32, 1.0), Estilo.C_AMARILLO, 3, 9)
+	var normal: StyleBoxFlat = Estilo.caja(Color(0.06, 0.09, 0.18, 0.96), Color(Estilo.C_BORDE, 0.9), 2, 8)
+	var encima: StyleBoxFlat = Estilo.caja(Color(0.12, 0.18, 0.32, 1.0), Estilo.C_AMARILLO, 3, 7)
 	var p = PanelContainer.new()
 	p.add_theme_stylebox_override("panel", normal)
 	p.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -842,8 +931,8 @@ func _tarjeta_opcion(letra: String, opcion: Dictionary, indice: int, color: Colo
 	h.add_theme_constant_override("separation", 12)
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.add_child(h)
-	var marca: PanelContainer = Estilo.nuevo_panel(Color(color, 0.2), color, 4)
-	marca.custom_minimum_size = Vector2(48, 48)
+	var marca: PanelContainer = Estilo.nuevo_panel(Color(color, 0.2), color, 2)
+	marca.custom_minimum_size = Vector2(44, 44)
 	marca.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	marca.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var l: Label = Estilo.nuevo_texto(letra, 32, color, false)
@@ -857,14 +946,10 @@ func _tarjeta_opcion(letra: String, opcion: Dictionary, indice: int, color: Colo
 	v.add_theme_constant_override("separation", 0)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	h.add_child(v)
-	var titulo: Label = Estilo.nuevo_texto(String(opcion["texto"]), 16, Estilo.C_TEXTO)
-	titulo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(titulo)
+	v.add_child(Estilo.nuevo_texto(String(opcion["texto"]), 16, Estilo.C_TEXTO))
 	var detalle: String = String(opcion.get("descripcion", ""))
 	if detalle != "":
-		var sub: Label = Estilo.nuevo_texto(detalle, 16, Estilo.C_TEXTO_SUAVE)
-		sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		v.add_child(sub)
+		v.add_child(Estilo.nuevo_texto(detalle, 16, Estilo.C_TEXTO_SUAVE))
 	p.mouse_entered.connect(func(): p.add_theme_stylebox_override("panel", encima))
 	p.mouse_exited.connect(func(): p.add_theme_stylebox_override("panel", normal))
 	p.gui_input.connect(func(evento: InputEvent):
@@ -876,6 +961,48 @@ func _on_opcion(indice: int) -> void:
 	if fase != "decision" or pausa.visible:
 		return
 	Sonido.clic()
+	var opcion: Dictionary = decision_actual["opciones"][indice]
+	# En una emergencia, un procedimiento válido se ejecuta a mano: minijuego de reparación
+	if String(decision_actual["categoria"]) == "nave" and not opcion.get("trampa", false):
+		_iniciar_minijuego(indice)
+	else:
+		_resolver(indice, false)
+
+# ===============================================================
+# FASE 3b: MINIJUEGO DE REPARACIÓN MANUAL
+# ===============================================================
+func _iniciar_minijuego(indice: int) -> void:
+	fase = "minijuego"
+	reloj_activo = false
+	var tipo: String = Minijuego.tipo_para(String(decision_actual["tema"]))
+	var opcion: Dictionary = decision_actual["opciones"][indice]
+	_abrir_panel(Estilo.C_AMARILLO)
+	var h = HBoxContainer.new()
+	h.add_theme_constant_override("separation", 12)
+	cabecera.add_child(h)
+	h.add_child(Estilo.nuevo_icono("herramienta", 48))
+	var v = VBoxContainer.new()
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_theme_constant_override("separation", 0)
+	h.add_child(v)
+	v.add_child(Estilo.nuevo_texto("REPARACIÓN MANUAL: " + String(Minijuego.TITULOS[tipo]), 32, Estilo.C_AMARILLO))
+	v.add_child(Estilo.nuevo_texto(String(Minijuego.INSTRUCCIONES[tipo]), 16, Estilo.C_TEXTO))
+	minijuego = Minijuego.new()
+	cuerpo.add_child(minijuego)
+	minijuego.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	minijuego.terminado.connect(_on_minijuego_terminado.bind(indice))
+	var nota: Label = Estilo.nuevo_texto("Procedimiento: " + String(opcion["texto"]), 16, Estilo.C_TEXTO_SUAVE)
+	nota.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pie.add_child(nota)
+	await _cerrar_panel()
+	if fase == "minijuego" and is_instance_valid(minijuego):
+		minijuego.iniciar(tipo, 2.0 if GameManager.modo_sin_temporizador else 1.0)
+
+func _on_minijuego_terminado(habilidad: float, indice: int) -> void:
+	if fase != "minijuego":
+		return
+	nota_reparacion = habilidad
+	GameManager.habilidad_manual = habilidad
 	_resolver(indice, false)
 
 func _resolver(indice: int, por_tiempo: bool) -> void:
@@ -903,34 +1030,48 @@ func _mostrar_feedback(res: Dictionary, antes: Dictionary, despues: Dictionary) 
 	var h = HBoxContainer.new()
 	h.add_theme_constant_override("separation", 12)
 	cabecera.add_child(h)
-	h.add_child(Estilo.nuevo_icono("resultado_" + tier, 64))
+	var sello: TextureRect = Estilo.nuevo_icono("resultado_" + tier, 64)
+	h.add_child(sello)
+	Estilo.saltar(sello, 0.15, 0.3)
 	var v = VBoxContainer.new()
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.add_theme_constant_override("separation", 0)
+	v.add_theme_constant_override("separation", -2)
 	h.add_child(v)
 	v.add_child(Estilo.nuevo_texto("RESULTADO: " + String(TIER_TEXTO[tier]), 32, color))
-	v.add_child(Estilo.nuevo_texto("Decisión: " + String(opcion["texto"]), 16, Estilo.C_TEXTO))
+	v.add_child(Estilo.nuevo_texto(String(opcion["texto"]), 16, Estilo.C_TEXTO))
 
 	if String(res["nota"]) != "":
 		cuerpo.add_child(_aviso(String(res["nota"]), Estilo.C_NARANJA, "reloj"))
+	if not is_nan(nota_reparacion):
+		var texto_rep: String = "Tu reparación manual falló y empeoró el resultado."
+		var color_rep: Color = Estilo.C_ROJO
+		if nota_reparacion >= 0.6:
+			texto_rep = "Tu reparación manual fue perfecta y ayudó al resultado."
+			color_rep = Estilo.C_VERDE
+		elif nota_reparacion >= 0.0:
+			texto_rep = "Tu reparación manual fue aceptable."
+			color_rep = Estilo.C_AMARILLO
+		cuerpo.add_child(_aviso(texto_rep, color_rep, "herramienta"))
 	for m in res["muertes"]:
 		cuerpo.add_child(_aviso(String(m), Estilo.C_ROJO, "sin_senal"))
 
-	cuerpo.add_child(_subtitulo("QUÉ PASÓ"))
 	var fichas: Array = _fichas_cambios(antes, despues)
 	if fichas.is_empty():
-		cuerpo.add_child(Estilo.nuevo_texto("Las barras no cambiaron.", 16, Estilo.C_TEXTO_SUAVE))
+		var nada: Label = Estilo.nuevo_texto("Las barras no cambiaron.", 16, Estilo.C_TEXTO_SUAVE)
+		nada.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		cuerpo.add_child(nada)
 	else:
 		_agregar_fichas(cuerpo, fichas)
 
 	var por_que: String = String(opcion.get("por_que", ""))
 	if por_que != "":
-		cuerpo.add_child(_subtitulo("POR QUÉ"))
-		cuerpo.add_child(Estilo.nuevo_texto(por_que, 16, Estilo.C_TEXTO))
+		var explicacion: Label = Estilo.nuevo_texto(por_que, 16, Estilo.C_TEXTO_SUAVE)
+		explicacion.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		cuerpo.add_child(explicacion)
 
-	cuerpo.add_child(_tarjeta_memo(Memos.para_decision(decision_actual), String(opcion.get("fuente", ""))))
-
-	# Análisis completo (se abre con un botón para no llenar la pantalla de texto)
+	# Memo NASA y análisis: plegados para no llenar la pantalla (el memo de los momentos clave sale abierto)
+	var memo: PanelContainer = _tarjeta_memo(Memos.para_decision(decision_actual), String(opcion.get("fuente", "")))
+	memo.visible = (String(decision_actual["categoria"]) == "hito")
 	var analisis = VBoxContainer.new()
 	analisis.add_theme_constant_override("separation", 4)
 	analisis.visible = false
@@ -942,29 +1083,42 @@ func _mostrar_feedback(res: Dictionary, antes: Dictionary, despues: Dictionary) 
 		analisis.add_child(_subtitulo("QUÉ HABRÍA PASADO CON LAS OTRAS OPCIONES"))
 		for a in res["alternativas"]:
 			analisis.add_child(_linea_alternativa(String(a)))
+	var extras = HBoxContainer.new()
+	extras.add_theme_constant_override("separation", 8)
+	extras.alignment = BoxContainer.ALIGNMENT_CENTER
+	cuerpo.add_child(extras)
+	extras.add_child(_boton_plegable("MEMO NASA", "memo", memo, Estilo.C_VERDE))
 	if analisis.get_child_count() > 0:
-		var ver: Button = Estilo.nuevo_boton("VER ANÁLISIS COMPLETO", 16, 0, 40)
-		Estilo.estilo_holo(ver)
-		ver.focus_mode = Control.FOCUS_NONE
-		ver.pressed.connect(func():
-			analisis.visible = not analisis.visible
-			ver.text = "OCULTAR ANÁLISIS" if analisis.visible else "VER ANÁLISIS COMPLETO"
-			_ajustar_panel(false))
-		cuerpo.add_child(ver)
-		cuerpo.add_child(analisis)
+		extras.add_child(_boton_plegable("ANÁLISIS", "ciencia", analisis, Estilo.C_CIAN))
+	cuerpo.add_child(memo)
+	cuerpo.add_child(analisis)
 
 	if GameManager.hay_final_inmediato():
 		siguiente = "final"
-		_boton_pie("VER EL DESENLACE DE LA MISIÓN")
+		_boton_pie("VER EL DESENLACE")
 	elif numero_decision == 1:
 		siguiente = "decision2"
 		_boton_pie("CONTINUAR")
 	else:
 		siguiente = "cerrar"
-		_boton_pie("VER EL RESUMEN DEL DÍA")
+		_boton_pie("TERMINAR EL DÍA")
 	_cerrar_panel()
 
-# Una alternativa llega como "texto: TIER (efectos)". Se pinta el nivel con su color.
+# Botón pequeño que abre y cierra un bloque de información extra
+func _boton_plegable(texto: String, icono: String, bloque: Control, color: Color) -> Button:
+	var b: Button = Estilo.nuevo_boton(texto, 16, 210, 40)
+	Estilo.estilo_holo(b, color)
+	b.icon = Estilo.icono(icono)
+	b.add_theme_constant_override("icon_max_width", 24)
+	b.focus_mode = Control.FOCUS_NONE
+	b.toggle_mode = true
+	b.set_pressed_no_signal(bloque.visible)
+	b.toggled.connect(func(abierto: bool):
+		bloque.visible = abierto
+		_ajustar_panel(false))
+	return b
+
+# Una alternativa llega como "texto: TIER (efectos)". Se pinta con el color de su nivel.
 func _linea_alternativa(texto: String) -> Label:
 	var color: Color = Estilo.C_TEXTO_SUAVE
 	for tier in TIER_TEXTO:
@@ -1002,13 +1156,14 @@ func _tarjeta_memo(memo: Dictionary, fuente_opcion: String) -> PanelContainer:
 	return p
 
 func _on_continuar() -> void:
+	_paso_id += 1
 	match siguiente:
 		"decision1":
 			numero_decision = 1
-			_mostrar_decision()
+			_anunciar_decision()
 		"decision2":
 			numero_decision = 2
-			_mostrar_decision()
+			_anunciar_decision()
 		"cerrar":
 			_cerrar_dia()
 		"dia":
@@ -1017,15 +1172,16 @@ func _on_continuar() -> void:
 			_ir_al_final()
 
 # ===============================================================
-# FASE 5: RESUMEN DEL DÍA
+# FASE 5: FIN DEL DÍA
 # ===============================================================
 func _cerrar_dia() -> void:
 	fase = "resumen"
 	reloj_activo = false
 	var ahora: Dictionary = GameManager.instantanea()
 	_abrir_panel(Estilo.C_CIAN)
-	cabecera.add_child(Estilo.nuevo_texto("RESUMEN DEL DÍA %d" % GameManager.dia_actual, 32, Estilo.C_AMARILLO))
-	cabecera.add_child(Estilo.nuevo_texto("Todo lo que cambió hoy, de la mañana a la noche:", 16, Estilo.C_TEXTO_SUAVE))
+	var titulo: Label = Estilo.nuevo_texto("FIN DEL DÍA %d" % GameManager.dia_actual, 32, Estilo.C_AMARILLO)
+	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cabecera.add_child(titulo)
 	var fichas: Array = _fichas_cambios(snap_dia, ahora)
 	if fichas.is_empty():
 		cuerpo.add_child(Estilo.nuevo_texto("Sin cambios.", 16, Estilo.C_TEXTO_SUAVE))
@@ -1036,12 +1192,10 @@ func _cerrar_dia() -> void:
 	GameManager.cerrar_dia()
 	if GameManager.hay_final_inmediato() or GameManager.dia_actual >= GameManager.DIAS_TOTALES:
 		siguiente = "final"
-		_boton_pie("VER EL DESENLACE DE LA MISIÓN")
+		_boton_pie("VER EL DESENLACE")
 	else:
-		var faltan: int = GameManager.DIAS_TOTALES - GameManager.dia_actual
-		cuerpo.add_child(Estilo.nuevo_texto("Faltan %d día(s) para volver a la Tierra." % faltan, 16, Estilo.C_CIAN))
 		siguiente = "dia"
-		_boton_pie("CONTINUAR AL DÍA %d" % (GameManager.dia_actual + 1))
+		_boton_pie("IR AL DÍA %d" % (GameManager.dia_actual + 1))
 	actualizar_hud(true)
 	_cerrar_panel()
 
@@ -1050,18 +1204,17 @@ func _siguiente_dia() -> void:
 		return
 	fase = "transicion"
 	var nuevo: int = GameManager.dia_actual + 1
-	var acto: Array = _acto(nuevo)
 	etq_velo_dia.text = "DÍA %d" % nuevo
-	etq_velo_acto.text = "%s  ·  %s" % [acto[0], _tramo(nuevo)]
+	etq_velo_acto.text = "%s  ·  %s" % [_acto(nuevo), _tramo(nuevo)]
 	velo_dia.modulate.a = 0.0
 	velo_dia.visible = true
 	var tw: Tween = create_tween()
 	tw.tween_property(velo_dia, "modulate:a", 1.0, 0.35)
 	tw.tween_callback(func():
 		GameManager.dia_actual = nuevo
-		_actualizar_espacio(0.0)
 		_mostrar_config())
-	tw.tween_interval(0.9)
+	tw.tween_interval(0.8)
+	tw.tween_callback(func(): _actualizar_espacio(3.0))      # los planetas se mueven a la vista del jugador
 	tw.tween_property(velo_dia, "modulate:a", 0.0, 0.45)
 	tw.tween_callback(func(): velo_dia.visible = false)
 
@@ -1083,6 +1236,7 @@ func _abrir_panel(color: Color) -> void:
 	_limpiar(cabecera)
 	_limpiar(cuerpo)
 	_limpiar(pie)
+	minijuego = null
 	panel_central.add_theme_stylebox_override("panel", Estilo.caja(Color(0.03, 0.05, 0.11, 0.95), color, 2, 14))
 	banner.visible = false
 	espaciador.visible = false
@@ -1109,42 +1263,63 @@ func _ajustar_panel(con_fundido: bool) -> void:
 		scroll.custom_minimum_size.y = minf(alto, maximo)
 	scroll.scroll_vertical = 0
 	if con_fundido:
+		# Entra creciendo un poco desde el centro
+		await get_tree().process_frame
+		if mi_id != _ajuste_id:
+			return
+		panel_central.pivot_offset = panel_central.size * 0.5
+		panel_central.scale = Vector2(0.96, 0.96)
 		var tw: Tween = create_tween()
-		tw.tween_property(panel_central, "modulate:a", 1.0, 0.2)
+		tw.set_parallel(true)
+		tw.tween_property(panel_central, "modulate:a", 1.0, 0.18)
+		tw.tween_property(panel_central, "scale", Vector2(1, 1), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		await tw.finished
 
 func _boton_pie(texto: String) -> void:
-	var b: Button = Estilo.nuevo_boton(texto, 24, 460, 56)
+	var b: Button = Estilo.nuevo_boton(texto, 24, 420, 52)
 	b.pressed.connect(_on_continuar)
 	pie.add_child(b)
 	b.grab_focus.call_deferred()
 
 func _aviso(texto: String, color: Color, icono: String) -> PanelContainer:
-	var p: PanelContainer = Estilo.nuevo_panel(Color(color, 0.12), Color(color, 0.8), 8)
+	var p: PanelContainer = Estilo.nuevo_panel(Color(color, 0.12), Color(color, 0.8), 6)
 	var h = HBoxContainer.new()
 	h.add_theme_constant_override("separation", 10)
 	p.add_child(h)
 	h.add_child(Estilo.nuevo_icono(icono, 32))
-	h.add_child(Estilo.nuevo_texto(texto, 16, color.lerp(Color(1, 1, 1), 0.45)))
+	var l: Label = Estilo.nuevo_texto(texto, 16, color.lerp(Color(1, 1, 1), 0.45))
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(l)
 	return p
 
 func _agregar_fichas(padre: Control, fichas: Array) -> void:
 	var flujo = HFlowContainer.new()
 	flujo.add_theme_constant_override("h_separation", 8)
 	flujo.add_theme_constant_override("v_separation", 8)
+	flujo.alignment = FlowContainer.ALIGNMENT_CENTER
 	padre.add_child(flujo)
+	var n: int = 0
 	for f in fichas:
 		flujo.add_child(f)
+		Estilo.saltar(f, 0.10 + 0.05 * float(n), 0.7)
+		n += 1
 
-# Ficha de color: icono + nombre + cuánto cambió
-func _ficha(icono: String, texto: String, valor: String, color: Color, color_texto: Color = Estilo.C_TEXTO) -> PanelContainer:
+# Ficha de color: icono + cuánto cambió. El nombre solo aparece cuando el icono no basta.
+func _ficha(icono: String, texto: String, valor: String, color: Color, ayuda: String, color_texto: Color = Estilo.C_TEXTO) -> PanelContainer:
 	var p: PanelContainer = Estilo.nuevo_panel(Color(color, 0.14), Color(color, 0.85), 6)
+	p.tooltip_text = "%s %s" % [ayuda, valor]
 	var h = HBoxContainer.new()
 	h.add_theme_constant_override("separation", 6)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.add_child(h)
 	h.add_child(Estilo.nuevo_icono(icono, 32))
-	h.add_child(Estilo.nuevo_texto(texto, 16, color_texto, false))
-	h.add_child(Estilo.nuevo_texto(valor, 24, color, false))
+	if texto != "":
+		var l: Label = Estilo.nuevo_texto(texto, 16, color_texto, false)
+		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(l)
+	var v: Label = Estilo.nuevo_texto(valor, 24, color, false)
+	v.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(v)
 	return p
 
 # Compara dos "fotos" del estado (GameManager.instantanea) y devuelve una ficha por cada cosa que cambió
@@ -1160,7 +1335,7 @@ func _fichas_cambios(antes: Dictionary, despues: Dictionary) -> Array:
 		elif clave == "temperatura":
 			color = Estilo.C_AMARILLO
 		var nombre: String = String(GameManager.ETIQUETAS.get(clave, clave)).replace(" (°C)", "")
-		lista.append(_ficha(clave, nombre, GameManager.signo(d) + String(UNIDAD.get(clave, " %")), color))
+		lista.append(_ficha(clave, String(NOMBRE_FICHA.get(clave, "")), GameManager.signo(d) + String(UNIDAD.get(clave, " %")), color, nombre))
 	for stat in ["salud", "estres", "hambre", "confianza"]:
 		var deltas: Dictionary = {}
 		for id in GameManager.TRIPULANTES:
@@ -1177,64 +1352,60 @@ func _fichas_cambios(antes: Dictionary, despues: Dictionary) -> Array:
 		var sube_es_bueno: bool = (stat == "salud" or stat == "confianza")
 		if iguales and deltas.size() >= 2 and deltas.size() == GameManager.vivos().size():
 			var bueno: bool = (float(valores[0]) > 0.0) == sube_es_bueno
-			lista.append(_ficha(stat, "%s de todos" % ETQ_STAT[stat], GameManager.signo(float(valores[0])), Estilo.C_VERDE if bueno else Estilo.C_ROJO))
+			lista.append(_ficha(stat, "Todos", GameManager.signo(float(valores[0])), Estilo.C_VERDE if bueno else Estilo.C_ROJO,
+				"%s de todos" % ETQ_STAT[stat]))
 		else:
 			for id in deltas:
 				var bueno2: bool = (float(deltas[id]) > 0.0) == sube_es_bueno
-				lista.append(_ficha(stat, "%s de %s" % [ETQ_STAT[stat], GameManager.NOMBRES_TRIPULANTE[id]], GameManager.signo(float(deltas[id])),
-					Estilo.C_VERDE if bueno2 else Estilo.C_ROJO, Estilo.ACENTO[id].lerp(Color(1, 1, 1), 0.4)))
+				lista.append(_ficha(stat, String(GameManager.NOMBRES_TRIPULANTE[id]), GameManager.signo(float(deltas[id])),
+					Estilo.C_VERDE if bueno2 else Estilo.C_ROJO, "%s de %s" % [ETQ_STAT[stat], GameManager.NOMBRES_TRIPULANTE[id]],
+					Estilo.ACENTO[id].lerp(Color(1, 1, 1), 0.4)))
 	return lista
 
 # ===============================================================
-# HUD: barras, retratos, alarmas
+# HUD: medidores, pastillas, retratos, alarmas
 # ===============================================================
 func actualizar_hud(animar: bool = true) -> void:
 	var dia: int = GameManager.dia_actual
-	var acto: Array = _acto(dia)
 	etq_dia.text = "DÍA %d/%d" % [dia, GameManager.DIAS_TOTALES]
-	etq_acto.text = "%s\n%s" % [acto[0], _tramo(dia)]
+	etq_tramo.text = _tramo(dia)
 
-	# --- Nave ---
-	for par in VITALES + SECUNDARIAS:
+	# --- Recursos vitales ---
+	for par in VITALES:
 		var clave: String = String(par[0])
 		var v: float = GameManager.valor_estado(clave)
-		var fila: Dictionary = filas[clave]
+		var m: Dictionary = medidores[clave]
 		var color: Color = Estilo.color_nivel(v)
-		var sube_es_bueno: bool = true
-		if clave == "datos":
-			color = Estilo.C_ROJO if v > 85.0 else Estilo.C_CIAN
-			sube_es_bueno = false
-		elif clave == "ciencia":
-			color = Estilo.C_VIOLETA
-		Estilo.color_barra(fila["barra"], color)
-		fila["valor"].text = "%d %%" % roundi(v)
-		fila["valor"].add_theme_color_override("font_color", color if clave != "ciencia" else Estilo.C_TEXTO)
-		_poner_barra(clave, fila["barra"], v, animar, sube_es_bueno)
-	filas["ciencia"]["valor"].text = "%d / %d %%" % [roundi(GameManager.ciencia), roundi(GameManager.ciencia_max)]
-	filas["ciencia"]["nombre"].text = "Ciencia (tope)"
+		Estilo.color_barra(m["barra"], color)
+		m["valor"].text = str(roundi(v))
+		m["valor"].add_theme_color_override("font_color", color)
+		_poner_barra(clave, m["barra"], v, animar, true, true)
 
+	# --- Sistemas ---
+	_pintar_pastilla("integridad", "%d %%" % roundi(GameManager.integridad), Estilo.color_nivel(GameManager.integridad),
+		"Integridad del casco: %d %%\nSi baja de %d %%, el escudo térmico no resiste la reentrada." % [roundi(GameManager.integridad), int(GameManager.INTEGRIDAD_REENTRADA)])
+	var meta: int = int(GameManager.CIENCIA_FINAL_BUENO)
+	var color_ciencia: Color = Estilo.C_VERDE if GameManager.ciencia >= float(meta) else Estilo.C_VIOLETA
+	var nota_tope: String = ""
+	if GameManager.ciencia_max < float(meta):
+		nota_tope = "\nOjo: con tu plan no se puede llegar a la meta."
+	_pintar_pastilla("ciencia", "%d / %d" % [roundi(GameManager.ciencia), meta], color_ciencia,
+		"Progreso científico: %d %%\nMeta del final bueno: %d %%. Tope de tu plan: %d %%.%s" % [roundi(GameManager.ciencia), meta, roundi(GameManager.ciencia_max), nota_tope])
+	_pintar_pastilla("datos", "%d %%" % roundi(GameManager.datos), Estilo.C_ROJO if GameManager.datos > 85.0 else Estilo.C_TEXTO,
+		"Memoria de datos: %d %%\nSe vacía sola si hay enlace con la Tierra. Si se llena, los instrumentos se apagan." % roundi(GameManager.datos))
 	var temp: float = GameManager.temperatura
 	var temp_ok: bool = temp >= 18.0 and temp <= 28.0
-	etq_temperatura.text = "Cabina: %d °C" % roundi(temp)
-	etq_temperatura.add_theme_color_override("font_color", Estilo.C_TEXTO if temp_ok else Estilo.C_ROJO)
-	etq_filtros.text = "Filtros de CO2: %d" % GameManager.filtros
-	etq_filtros.add_theme_color_override("font_color", Estilo.C_TEXTO if GameManager.filtros > 0 else Estilo.C_ROJO)
+	_pintar_pastilla("temperatura", "%d °C" % roundi(temp), Estilo.C_TEXTO if temp_ok else Estilo.C_ROJO,
+		"Temperatura de la cabina: %d °C\nZona segura: 18 a 28 °C. Fuera de ella sube el estrés y baja la salud." % roundi(temp))
+	_pintar_pastilla("filtros", "x %d" % GameManager.filtros, Estilo.C_TEXTO if GameManager.filtros > 0 else Estilo.C_ROJO,
+		"Cartuchos de CO2 de reserva: %d\nSin cartuchos, el aire empeora y baja la salud de todos." % GameManager.filtros)
 	if GameManager.enlace_dias > 0:
-		etq_enlace.text = "Enlace PERDIDO (%d d)" % GameManager.enlace_dias
-		etq_enlace.add_theme_color_override("font_color", Estilo.C_ROJO)
+		_pintar_pastilla("enlace", "NO (%d d)" % GameManager.enlace_dias, Estilo.C_ROJO,
+			"Enlace con la Tierra PERDIDO: %d día(s) más.\nSin enlace, la memoria de datos no se vacía." % GameManager.enlace_dias)
 	else:
-		etq_enlace.text = "Enlace con la Tierra"
-		etq_enlace.add_theme_color_override("font_color", Estilo.C_TEXTO)
-	var avisos: Array = []
-	if GameManager.modulo_dias > 0:
-		avisos.append("Módulo de servicio bloqueado: %d día(s)" % GameManager.modulo_dias)
-	if GameManager.reparaciones_dias > 0:
-		avisos.append("Reparaciones lentas: %d día(s)" % GameManager.reparaciones_dias)
-	if GameManager.mision_abortada:
-		avisos.append("Carga científica soltada")
-	etq_avisos.text = "\n".join(avisos)
-	etq_avisos.visible = not avisos.is_empty()
+		_pintar_pastilla("enlace", "OK", Estilo.C_VERDE, "Enlace con la Tierra activo.")
 
+	# --- Órdenes activas y avisos ---
 	var higiene: String = "suspendida" if GameManager.higiene_suspendida else "normal"
 	iconos_orden["racion"].texture = Estilo.icono("racion_" + GameManager.racion)
 	iconos_orden["racion"].tooltip_text = "Ración: " + String(NOMBRE_ORDEN[GameManager.racion])
@@ -1242,20 +1413,29 @@ func actualizar_hud(animar: bool = true) -> void:
 	iconos_orden["instrumentos"].tooltip_text = "Instrumentos: " + String(NOMBRE_ORDEN[GameManager.instrumentos])
 	iconos_orden["higiene"].texture = Estilo.icono("higiene_" + higiene)
 	iconos_orden["higiene"].tooltip_text = "Higiene: " + String(NOMBRE_ORDEN[higiene])
+	var avisos: Array = []
+	if GameManager.modulo_dias > 0:
+		avisos.append("Módulo bloqueado %d d" % GameManager.modulo_dias)
+	if GameManager.reparaciones_dias > 0:
+		avisos.append("Reparación lenta %d d" % GameManager.reparaciones_dias)
+	if GameManager.mision_abortada:
+		avisos.append("Carga soltada")
+	etq_avisos.text = "\n".join(avisos)
+	etq_avisos.get_parent().visible = not avisos.is_empty()
 
 	# --- Alarmas ---
 	var alarmas: Array = GameManager.alarmas()
 	_en_alerta = not alarmas.is_empty()
+	var caja_alarma: Control = icono_alarma.get_parent()
+	etq_alarma.text = str(alarmas.size())
 	if _en_alerta:
-		etq_alarma.text = "%d ALARMA(S)" % alarmas.size()
 		etq_alarma.add_theme_color_override("font_color", Estilo.C_ROJO)
-		etq_alarma.tooltip_text = "\n".join(alarmas)
+		caja_alarma.tooltip_text = "ALARMAS:\n" + "\n".join(alarmas)
 		if alarmas.size() > _alarmas_antes and animar:
 			Sonido.efecto("alarma")
 	else:
-		etq_alarma.text = "SIN ALARMAS"
 		etq_alarma.add_theme_color_override("font_color", Estilo.C_VERDE)
-		etq_alarma.tooltip_text = "Una alarma salta cuando un recurso vital baja de %d %%." % int(GameManager.UMBRAL_ALARMA)
+		caja_alarma.tooltip_text = "Sin alarmas. Una alarma salta cuando un recurso vital baja de %d %%." % int(GameManager.UMBRAL_ALARMA)
 	_alarmas_antes = alarmas.size()
 
 	# --- Tripulación ---
@@ -1264,19 +1444,33 @@ func actualizar_hud(animar: bool = true) -> void:
 		var c: Dictionary = tarjetas[id]
 		var salud: float = float(t["salud"])
 		var estres: float = float(t["estres"])
+		var confianza: float = float(t["confianza"])
 		Estilo.cambiar_retrato(c["retrato"], Estilo.expresion(salud, estres))
 		var insignia: Array = _insignia(salud, estres)
 		c["insignia"].text = String(insignia[0])
 		c["insignia"].add_theme_color_override("font_color", insignia[1])
-		c["confianza"].text = str(roundi(float(t["confianza"])))
-		c["confianza"].add_theme_color_override("font_color", Estilo.C_ROJO if float(t["confianza"]) < 30.0 else Estilo.C_AMARILLO)
+		c["aviso"].visible = confianza < 40.0 and salud > 0.0
+		c["panel"].tooltip_text = "%s  ·  %s\nSalud %d   Estrés %d   Hambre %d\nConfianza en tu mando: %d%s" % [
+			t["nombre"], t["rol"], roundi(salud), roundi(estres), roundi(float(t["hambre"])), roundi(confianza),
+			"  (¡puede ignorar tus órdenes!)" if confianza < 30.0 else ""]
+		var salud_antes: float = float(_mostrado.get("salud_" + String(id), salud))
+		if animar and salud < salud_antes - 0.5:
+			_golpes[id] = 0.45       # el retrato tiembla y la tarjeta se pone roja un instante
+			var tw: Tween = create_tween()
+			tw.tween_property(c["panel"], "self_modulate", Color(1.0, 0.45, 0.45), 0.08)
+			tw.tween_property(c["panel"], "self_modulate", Color(1, 1, 1), 0.4)
 		for stat in ["salud", "estres", "hambre"]:
 			var valor: float = float(t[stat])
-			c[stat]["valor"].text = str(roundi(valor))
 			if stat == "salud":
 				Estilo.color_barra(c[stat]["barra"], Estilo.color_nivel(valor))
-			_poner_barra(stat + "_" + String(id), c[stat]["barra"], valor, animar, stat == "salud")
+			_poner_barra(stat + "_" + String(id), c[stat]["barra"], valor, animar, stat == "salud", false)
 		c["panel"].modulate = Color(0.55, 0.55, 0.62) if salud <= 0.0 else Color(1, 1, 1)
+
+func _pintar_pastilla(clave: String, texto: String, color: Color, ayuda: String) -> void:
+	var p: Dictionary = pastillas[clave]
+	p["valor"].text = texto
+	p["valor"].add_theme_color_override("font_color", color)
+	p["panel"].tooltip_text = ayuda
 
 func _insignia(salud: float, estres: float) -> Array:
 	if salud <= 0.0:
@@ -1292,7 +1486,7 @@ func _insignia(salud: float, estres: float) -> Array:
 	return ["ESTABLE", Estilo.C_VERDE]
 
 # Mueve una barra a su nuevo valor. Si cambió, la anima y suelta un número flotante (+5, -12...)
-func _poner_barra(clave: String, barra: ProgressBar, valor: float, animar: bool, sube_es_bueno: bool) -> void:
+func _poner_barra(clave: String, barra: ProgressBar, valor: float, animar: bool, sube_es_bueno: bool, hacia_abajo: bool) -> void:
 	var antes: float = float(_mostrado.get(clave, valor))
 	_mostrado[clave] = valor
 	var d: float = valor - antes
@@ -1302,16 +1496,17 @@ func _poner_barra(clave: String, barra: ProgressBar, valor: float, animar: bool,
 	var tw: Tween = create_tween()
 	tw.tween_property(barra, "value", valor, 0.6).set_trans(Tween.TRANS_SINE)
 	var bueno: bool = (d > 0.0) == sube_es_bueno
-	_flotar(GameManager.signo(d), Estilo.C_VERDE if bueno else Estilo.C_ROJO, barra.global_position + Vector2(barra.size.x * 0.5 - 14.0, -26.0))
+	var donde: Vector2 = barra.global_position + Vector2(barra.size.x * 0.5 - 14.0, 10.0 if hacia_abajo else -30.0)
+	_flotar(GameManager.signo(d), Estilo.C_VERDE if bueno else Estilo.C_ROJO, donde, 28.0 if hacia_abajo else -28.0)
 
-func _flotar(texto: String, color: Color, donde: Vector2) -> void:
+func _flotar(texto: String, color: Color, donde: Vector2, recorrido: float) -> void:
 	var l: Label = Estilo.con_borde(Estilo.nuevo_texto(texto, 24, color, false), 6)
 	l.position = donde
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	capa_flotante.add_child(l)
 	var tw: Tween = create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(l, "position:y", donde.y - 30.0, 1.5)
+	tw.tween_property(l, "position:y", donde.y + recorrido, 1.5)
 	tw.tween_property(l, "modulate:a", 0.0, 0.6).set_delay(0.9)
 	tw.chain().tween_callback(l.queue_free)
 
@@ -1321,13 +1516,14 @@ func _resaltar_responsable(id: String) -> void:
 		var color: Color = Estilo.ACENTO[otro]
 		var es: bool = (String(otro) == id)
 		tarjetas[otro]["panel"].add_theme_stylebox_override("panel",
-			Estilo.caja(Color(0.12, 0.17, 0.30, 0.97) if es else Estilo.C_PANEL_CLARO, Estilo.C_AMARILLO if es else Color(color, 0.7), 3 if es else 2, 7 if es else 8))
+			Estilo.caja(Color(0.12, 0.17, 0.30, 0.97) if es else Estilo.C_PANEL_CLARO, Estilo.C_AMARILLO if es else Color(color, 0.7), 3 if es else 2, 5 if es else 6))
 
 # ===============================================================
-# CADA CUADRO: reloj, luces y mapa
+# CADA CUADRO: reloj, luces, mapa y retratos que flotan
 # ===============================================================
 func _process(delta: float) -> void:
 	_t += delta
+	_dia_mapa = move_toward(_dia_mapa, float(GameManager.dia_actual), delta * 0.7)
 	trayectoria.queue_redraw()
 
 	# Luz roja: late mientras haya alarmas y da un destello cuando llega una emergencia
@@ -1336,13 +1532,26 @@ func _process(delta: float) -> void:
 	if _en_alerta:
 		objetivo = maxf(objetivo, 0.35 + 0.25 * sin(_t * 4.0))
 	luz_alerta.modulate.a = lerpf(luz_alerta.modulate.a, objetivo, minf(1.0, delta * 8.0))
-	icono_alarma.modulate.a = (0.55 + 0.45 * sin(_t * 8.0)) if _en_alerta else 0.25
+	icono_alarma.modulate.a = (0.55 + 0.45 * sin(_t * 8.0)) if _en_alerta else 0.3
 
-	# Las barras vitales en zona de alarma parpadean
+	# Los recursos en zona de alarma parpadean
 	for par in VITALES:
 		var clave: String = String(par[0])
 		var bajo: bool = GameManager.valor_estado(clave) < GameManager.UMBRAL_ALARMA
-		filas[clave]["icono"].modulate.a = (0.5 + 0.5 * sin(_t * 9.0)) if bajo else 1.0
+		medidores[clave]["icono"].modulate.a = (0.7 + 0.3 * sin(_t * 9.0)) if bajo else 1.0
+
+	# Los astronautas flotan; si acaban de recibir daño, tiemblan
+	var n: int = 0
+	for id in tarjetas:
+		var marco: PanelContainer = tarjetas[id]["retrato"]
+		Estilo.flotar_retrato(marco, _t, float(n) * 1.7)
+		if _golpes.has(id):
+			_golpes[id] = float(_golpes[id]) - delta
+			var img: TextureRect = marco.get_meta("imagen")
+			img.position.x += roundf(sin(_t * 70.0) * 6.0 * clampf(float(_golpes[id]) / 0.45, 0.0, 1.0))
+			if float(_golpes[id]) <= 0.0:
+				_golpes.erase(id)
+		n += 1
 
 	if fase != "decision" or not reloj_activo or pausa.visible:
 		return
@@ -1359,6 +1568,9 @@ func _process(delta: float) -> void:
 		Estilo.color_barra(barra_tiempo, color)
 		etq_tiempo.text = "%d s" % ceili(queda)
 		etq_tiempo.add_theme_color_override("font_color", color)
+		if is_instance_valid(icono_reloj):
+			icono_reloj.pivot_offset = icono_reloj.size * 0.5
+			icono_reloj.rotation = sin(_t * 30.0) * 0.2 if fraccion < 0.25 else 0.0
 	var segundo: int = ceili(queda)
 	if segundo <= 5 and segundo != _ultimo_tic:
 		_ultimo_tic = segundo

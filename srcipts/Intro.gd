@@ -7,13 +7,13 @@ const FondoEspacio = preload("res://srcipts/FondoEspacio.gd")
 
 const TRIPULACION: Array = [
 	{"id": "elena", "nombre": "Elena Marín", "edad": 42, "rol": "Comandante y Piloto",
-	 "objetivo": "Que todos lleguen vivos.", "rasgo": "Toma la decisión final del grupo, incluso cuando es impopular."},
+	 "objetivo": "Que todos lleguen vivos.", "rasgo": "Decide aunque sea impopular."},
 	{"id": "marcus", "nombre": "Marcus Chen", "edad": 35, "rol": "Ingeniero de Sistemas",
-	 "objetivo": "Que la nave no falle.", "rasgo": "Prefiere ahorrar energía antes que cuidar el ánimo de la tripulación."},
+	 "objetivo": "Que la nave no falle.", "rasgo": "Ahorra energía ante todo."},
 	{"id": "sofia", "nombre": "Dra. Sofía Reyes", "edad": 38, "rol": "Médica y Bióloga",
-	 "objetivo": "Salud física y mental.", "rasgo": "Defiende las raciones completas y el ejercicio, aunque gasten más recursos."},
+	 "objetivo": "Salud física y mental.", "rasgo": "Primero el bienestar de todos."},
 	{"id": "leo", "nombre": "Leo Okafor", "edad": 29, "rol": "Ingeniero Mecánico",
-	 "objetivo": "Ciencia y contacto con la Tierra.", "rasgo": "Quiere todos los instrumentos encendidos, cueste lo que cueste."},
+	 "objetivo": "Ciencia y contacto con la Tierra.", "rasgo": "Quiere todos los instrumentos encendidos."},
 ]
 
 var paginas: Array = []
@@ -251,16 +251,15 @@ func _pagina_nave() -> Control:
 	der.add_child(t)
 	der.add_child(_dato("agua", "Agua: 162,4 litros", "2,5 L para beber + 0,4 L de higiene por astronauta al día (estándar NASA)."))
 	der.add_child(_dato("comida", "Comida: 169.960 kcal", "3.035 kcal por astronauta al día (requerimiento energético NASA)."))
-	der.add_child(_dato("oxigeno", "Oxígeno y filtros de CO2", "El aire se recicla. Si los filtros se saturan, el CO2 intoxica a la tripulación."))
-	der.add_child(_dato("electricidad", "Electricidad", "Paneles solares y celdas. Sin energía no funciona el soporte vital."))
-	der.add_child(_dato("combustible", "Combustible", "Solo alcanza para las maniobras planeadas: ir, orbitar y volver."))
+	der.add_child(_dato("oxigeno", "Oxígeno y filtros de CO2", "Si los filtros se saturan, el CO2 intoxica a la tripulación."))
+	der.add_child(_dato("electricidad", "Electricidad y combustible", "Sin energía no hay soporte vital. El combustible alcanza justo para ir y volver."))
 	return v
 
 # ---------------------------------------------------------------
 # Página 3: la tripulación
 # ---------------------------------------------------------------
 func _pagina_tripulacion() -> Control:
-	var v: VBoxContainer = _pagina("LA TRIPULACIÓN", "Cuatro especialistas. Cada uno quiere algo distinto... y tú decides")
+	var v: VBoxContainer = _pagina("LA TRIPULACIÓN", "Cada uno quiere algo distinto... y tú decides")
 	var fila = HBoxContainer.new()
 	fila.add_theme_constant_override("separation", 14)
 	fila.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -283,10 +282,13 @@ func _pagina_tripulacion() -> Control:
 		rol.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		c.add_child(rol)
 		c.add_child(HSeparator.new())
-		c.add_child(Estilo.nuevo_texto("QUIERE:", 16, Estilo.C_AMARILLO))
-		c.add_child(Estilo.nuevo_texto(String(t["objetivo"]), 16, Estilo.C_TEXTO))
-		c.add_child(Estilo.nuevo_texto("CARÁCTER:", 16, Estilo.C_AMARILLO))
-		c.add_child(Estilo.nuevo_texto(String(t["rasgo"]), 16, Estilo.C_TEXTO))
+		var quiere: Label = Estilo.nuevo_texto(String(t["objetivo"]), 16, Estilo.C_AMARILLO)
+		quiere.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		c.add_child(quiere)
+		var rasgo: Label = Estilo.nuevo_texto(String(t["rasgo"]), 16, Estilo.C_TEXTO_SUAVE)
+		rasgo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		c.add_child(rasgo)
+		Estilo.saltar(tarjeta, 0.08 * float(fila.get_child_count()), 0.85)
 	return v
 
 # ---------------------------------------------------------------
@@ -303,18 +305,16 @@ func _pagina_mision() -> Control:
 	izq.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	fila.add_child(izq)
 	izq.add_child(Estilo.con_borde(Estilo.nuevo_texto("CADA DÍA", 24, Estilo.C_VERDE)))
-	izq.add_child(_dato("racion_completa", "1. Da las órdenes", "Ración de comida, instrumentos científicos e higiene."))
+	izq.add_child(_dato("racion_completa", "1. Da las órdenes", "Ración de comida, instrumentos e higiene."))
 	izq.add_child(_dato("reloj", "2. Decide contra reloj", "Una emergencia de la nave y una decisión de recursos."))
-	izq.add_child(_dato("salud", "3. Cuida a tu gente", "El hambre y el estrés enferman a la tripulación y provocan errores."))
-	izq.add_child(_dato("ciencia", "4. No olvides la ciencia", "Necesitas 70 % de progreso científico para el mejor final."))
+	izq.add_child(_dato("herramienta", "3. Repara con tus manos", "En las emergencias, un minijuego decide qué tan bien sale el arreglo."))
 
 	var der = VBoxContainer.new()
 	der.add_theme_constant_override("separation", 10)
 	der.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	fila.add_child(der)
 	der.add_child(Estilo.con_borde(Estilo.nuevo_texto("TRES FINALES POSIBLES", 24, Estilo.C_VERDE)))
-	der.add_child(_dato("resultado_bueno", "Misión cumplida", "Los cuatro vivos, reservas por encima de 15 % y las muestras lunares a bordo."))
-	der.add_child(_dato("resultado_intermedio", "Misión abortada", "Regresan con vida, pero sin la ciencia o con pérdidas en la tripulación."))
-	der.add_child(_dato("resultado_malo", "Silencio total", "Un recurso vital llega a cero y la última señal nunca llega a la Tierra."))
-	der.add_child(_dato("memo", "Aprende con la NASA", "Después de cada decisión verás por qué funcionó o falló, con memos y enlaces reales."))
+	der.add_child(_dato("resultado_bueno", "Misión cumplida", "Los cuatro vivos, reservas sobre 15 % y 70 % de ciencia."))
+	der.add_child(_dato("resultado_intermedio", "Misión abortada", "Regresan con vida, pero sin la ciencia o con pérdidas."))
+	der.add_child(_dato("resultado_malo", "Silencio total", "Un recurso vital llega a cero: la última señal nunca llega."))
 	return v

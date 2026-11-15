@@ -411,6 +411,21 @@ def icono_pulso(vivo):
     return contorno(img)
 
 
+def icono_herramienta():
+    """Llave inglesa (para los minijuegos de reparacion)."""
+    img = lienzo(32, 32)
+    d = ImageDraw.Draw(img)
+    gris = (196, 204, 220, 255)
+    d.line((9, 23, 21, 11), fill=gris, width=5)
+    d.ellipse((17, 3, 29, 15), fill=gris)
+    d.polygon([(23, 1), (31, 1), (31, 9), (26, 9), (23, 6)], fill=(0, 0, 0, 0))
+    d.ellipse((3, 19, 13, 29), fill=gris)
+    d.ellipse((6, 22, 10, 26), fill=(0, 0, 0, 0))
+    tono(img, lambda x, y: x + y > 36, 0.74)
+    d.line((10, 20, 19, 11), fill=(236, 240, 248, 255))
+    return contorno(img)
+
+
 def icono_tierra_mini():
     img = lienzo(32, 32)
     d = ImageDraw.Draw(img)
@@ -891,6 +906,100 @@ def fondo_final_intermedio():
 
 
 # ----------------------------------------------------------------------------
+# Escena del despegue: cohete, torre y fondo de Cabo Canaveral
+# ----------------------------------------------------------------------------
+def cohete():
+    """Cohete lunar con la Orion en la punta. 48x160."""
+    img = lienzo(48, 160)
+    d = ImageDraw.Draw(img)
+    naranja = (226, 124, 52, 255)
+    naranja_s = (178, 90, 36, 255)
+    blanco = (236, 240, 246, 255)
+    gris = (176, 184, 200, 255)
+    oscuro = (60, 64, 84, 255)
+    # Etapa central
+    d.rectangle((18, 44, 29, 138), fill=naranja)
+    d.rectangle((26, 44, 29, 138), fill=naranja_s)
+    d.rectangle((18, 44, 29, 46), fill=oscuro)
+    d.rectangle((18, 96, 29, 97), fill=naranja_s)
+    # Propulsores laterales
+    for x0 in (9, 31):
+        d.rectangle((x0, 70, x0 + 7, 140), fill=blanco)
+        d.rectangle((x0 + 5, 70, x0 + 7, 140), fill=gris)
+        d.polygon([(x0, 70), (x0 + 7, 70), (x0 + 4, 58), (x0 + 3, 58)], fill=blanco)
+        d.rectangle((x0, 92, x0 + 7, 93), fill=oscuro)
+        d.rectangle((x0, 118, x0 + 7, 119), fill=oscuro)
+        d.polygon([(x0 + 1, 140), (x0 + 6, 140), (x0 + 8, 148), (x0 - 1, 148)], fill=oscuro)
+    # Etapa superior
+    d.polygon([(18, 44), (29, 44), (27, 34), (20, 34)], fill=blanco)
+    d.rectangle((20, 24, 27, 34), fill=blanco)
+    d.rectangle((25, 24, 27, 34), fill=gris)
+    d.rectangle((20, 29, 27, 29), fill=(48, 96, 190, 255))
+    # Modulo de servicio y capsula Orion
+    d.rectangle((20, 18, 27, 24), fill=gris)
+    d.polygon([(20, 18), (27, 18), (25, 11), (22, 11)], fill=blanco)
+    # Torre de escape
+    d.rectangle((23, 2, 24, 11), fill=gris)
+    d.polygon([(22, 4), (25, 4), (24, 0), (23, 0)], fill=blanco)
+    # Motores centrales
+    d.rectangle((19, 138, 28, 141), fill=oscuro)
+    for x0 in (19, 25):
+        d.polygon([(x0, 141), (x0 + 3, 141), (x0 + 4, 147), (x0 - 1, 147)], fill=(96, 102, 122, 255))
+    return contorno(img)
+
+
+def torre_lanzamiento():
+    """Torre de servicio de la plataforma. 56x170."""
+    img = lienzo(56, 170)
+    d = ImageDraw.Draw(img)
+    gris = (124, 132, 154, 255)
+    oscuro = (84, 90, 112, 255)
+    d.rectangle((6, 10, 9, 169), fill=gris)
+    d.rectangle((26, 10, 29, 169), fill=gris)
+    for y in range(10, 166, 16):
+        d.line((9, y, 26, y + 15), fill=oscuro)
+        d.line((26, y, 9, y + 15), fill=oscuro)
+        d.line((6, y, 29, y), fill=gris)
+    for y in (40, 84, 124):
+        d.rectangle((29, y, 50, y + 3), fill=gris)
+        d.rectangle((48, y, 51, y + 8), fill=oscuro)
+    d.rectangle((17, 0, 18, 10), fill=gris)
+    d.point((17, 0), fill=(255, 90, 90, 255))
+    d.point((18, 0), fill=(255, 90, 90, 255))
+    return contorno(img)
+
+
+def fondo_despegue():
+    rnd = random.Random(353)
+    img = Image.new("RGBA", (320, 180), (0, 0, 0, 255))
+    d = ImageDraw.Draw(img)
+    degradado(img, 0, 140, [(8, 12, 36), (20, 26, 72), (60, 50, 116), (170, 92, 112), (246, 156, 100), (255, 214, 150)])
+    for _ in range(60):
+        d.point((rnd.randint(0, 319), rnd.randint(0, 62)), fill=(255, 255, 255, 255))
+    # Mar al fondo
+    degradado(img, 140, 148, [(70, 110, 170), (40, 76, 136)])
+    for _ in range(40):
+        x = rnd.randint(0, 319)
+        d.line((x, rnd.randint(141, 147), x + rnd.randint(2, 5), rnd.randint(141, 147)), fill=(255, 210, 150, 255))
+    # Edificio de ensamblaje y tanque a lo lejos
+    silueta = (26, 30, 56, 255)
+    d.rectangle((18, 112, 50, 140), fill=silueta)
+    d.rectangle((50, 126, 70, 140), fill=silueta)
+    puntos(d, [(24, 118), (30, 124), (38, 118), (44, 130), (56, 132), (62, 132)], (255, 226, 140, 255))
+    d.ellipse((268, 118, 284, 132), fill=silueta)
+    d.rectangle((274, 130, 278, 140), fill=silueta)
+    # Terreno
+    degradado(img, 148, 180, [(40, 58, 54), (28, 42, 42), (16, 24, 28)])
+    # Plataforma de lanzamiento
+    d.polygon([(112, 156), (208, 156), (220, 168), (100, 168)], fill=(96, 100, 112, 255))
+    d.rectangle((112, 152, 208, 156), fill=(140, 144, 156, 255))
+    d.rectangle((150, 156, 170, 168), fill=(30, 30, 38, 255))
+    for x in (120, 136, 184, 200):
+        d.point((x, 153), fill=(255, 226, 140, 255))
+    return img
+
+
+# ----------------------------------------------------------------------------
 # Hojas de revision (para ver todo junto mientras se disena)
 # ----------------------------------------------------------------------------
 def hoja(imagenes, columnas, escala, fondo=(46, 50, 76, 255), margen=6):
@@ -944,6 +1053,7 @@ def main(revision_dir=None):
         "tierra": icono_tierra_mini(),
         "luna": icono_luna_mini(),
         "orion_mini": icono_orion_mini(),
+        "herramienta": icono_herramienta(),
     }
     for nombre, img in iconos.items():
         guardar(img, "iconos", nombre + ".png")
@@ -964,7 +1074,12 @@ def main(revision_dir=None):
     for nombre, img in nave.items():
         guardar(img, "nave", nombre + ".png")
 
-    fondos = {"final_bueno": fondo_final_bueno(), "final_intermedio": fondo_final_intermedio()}
+    nave["cohete"] = cohete()
+    nave["torre"] = torre_lanzamiento()
+    for nombre in ("cohete", "torre"):
+        guardar(nave[nombre], "nave", nombre + ".png")
+
+    fondos = {"final_bueno": fondo_final_bueno(), "final_intermedio": fondo_final_intermedio(), "despegue": fondo_despegue()}
     for nombre, img in fondos.items():
         guardar(img, "finales", nombre + ".png")
 

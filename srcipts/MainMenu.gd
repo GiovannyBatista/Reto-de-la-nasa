@@ -90,6 +90,12 @@ func _ready() -> void:
 	b_salir.pressed.connect(func(): get_tree().quit())
 	botones.add_child(b_salir)
 	b_jugar.grab_focus.call_deferred()
+	# Los botones entran uno tras otro con un pequeño salto
+	var orden: int = 0
+	for boton in botones.get_children():
+		Estilo.saltar(boton, 0.5 + 0.09 * float(orden), 0.8)
+		orden += 1
+	Estilo.saltar(titulo, 0.15, 0.9)
 
 	# --- Pie y botón de sonido ---
 	var pie: Label = Estilo.con_borde(Estilo.nuevo_texto("Reto NASA  ·  Datos de NASA Crew Systems y Habitability Functions Vol. 2  ·  Hecho con Godot", 16, Estilo.C_TEXTO_SUAVE, false))
@@ -187,7 +193,7 @@ func _abrir_como_jugar() -> void:
 	cuerpo.add_child(fila)
 	var pasos: Array = [
 		["racion_completa", "1. DA LAS ÓRDENES", "Cada mañana eliges la ración de comida, los instrumentos científicos y la higiene. Gastar menos cuida los recursos, pero sube el hambre y el estrés."],
-		["reloj", "2. DECIDE A TIEMPO", "Cada día hay 2 decisiones contra reloj: una emergencia de la nave y una de recursos. Si se acaba el tiempo, la tripulación actúa sola."],
+		["reloj", "2. DECIDE A TIEMPO", "Cada día hay 2 decisiones contra reloj. En las emergencias, tú mismo haces la reparación en un minijuego."],
 		["alarma", "3. VIGILA LAS BARRAS", "Si el agua, el oxígeno, la electricidad o el combustible llegan a 0, la misión termina. Cuida también la salud y el estrés de los cuatro."],
 		["tierra", "4. VUELVE A CASA", "Sobrevive 14 días, reúne 70 % de ciencia y trae a todos vivos para lograr el mejor final."],
 	]

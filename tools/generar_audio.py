@@ -171,6 +171,16 @@ def linea_plana():
     guardar("linea_plana.wav", x, 0.35)
 
 
+def despegue():
+    """Rugido grave de los motores: empieza de golpe, crece y se aleja."""
+    seg = 8.0
+    t = tiempo(seg)
+    x = 1.0 * ruido_ciclico(seg, 25, 220, 21) + 0.5 * ruido_ciclico(seg, 220, 900, 22) + 0.2 * ruido_ciclico(seg, 900, 3500, 23)
+    env = np.minimum(1.0, t / 0.9) * np.minimum(1.0, (seg - t) / 3.0)
+    crujido = 0.8 + 0.2 * np.sin(2 * np.pi * 11.0 * t) * np.sin(2 * np.pi * 0.7 * t)
+    guardar("despegue.wav", x * env * crujido, 0.6)
+
+
 def acorde(freqs, seg, ataque, caida_final):
     t = tiempo(seg)
     x = np.zeros_like(t)
@@ -258,6 +268,7 @@ def main():
     aviso()
     fallo()
     linea_plana()
+    despegue()
     final_bueno()
     final_intermedio()
     musica_tension()
