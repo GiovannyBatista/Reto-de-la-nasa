@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://cy3amrpcloxvf"]
 
-[ext_resource type="Script" uid="uid://nq10e1wgfib" path="res://srcipts/Mission.gd" id="1_01qru"]
+[ext_resource type="Script" path="res://srcipts/MisionVisual.gd" id="1_01qru"]
 
 [node name="Mission" type="Control" unique_id=223532136]
 layout_mode = 3
