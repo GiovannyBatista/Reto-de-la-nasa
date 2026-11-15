@@ -9,7 +9,18 @@ const C_BORDE: Color = Color(0.36, 0.46, 0.58)
 const C_VERDE: Color = Color(0.35, 0.85, 0.45)
 const C_AMARILLO: Color = Color(0.95, 0.80, 0.25)
 const C_TEXTO_SUAVE: Color = Color(0.72, 0.78, 0.85)
+const COLOR_TEXTO_BOTON: Color = Color(0.08, 0.10, 0.16)   # texto de los botones con imagen (oscuro para botones claros)
 const ICONOS: Dictionary = {"soporte": "💧", "celdas": "⚡", "filtros": "🌀", "instrumentos": "🔬"}
+
+# --- Assets que eliges en el Inspector (selecciona el nodo raíz de shop.tscn y arrastra las imágenes) ---
+@export var marco_icono: Texture2D        # marco de la ranura de cada icono
+@export var icono_soporte: Texture2D
+@export var icono_celdas: Texture2D
+@export var icono_filtros: Texture2D
+@export var icono_instrumentos: Texture2D
+const TAM_RANURA: int = 52       # tamaño del cuadro del icono (px)
+const TAM_ICONO: int = 32        # tamaño del icono dentro del cuadro (px)
+const BORDE_MARCO: int = 4       # píxeles de borde del marco que no se estiran
 
 var niveles: Dictionary = {}
 var etiquetas_nivel: Dictionary = {}
@@ -95,10 +106,113 @@ func _caja(fondo: Color, borde: Color, grosor: int = 2, radio: int = 4) -> Style
 	s.content_margin_bottom = 8
 	return s
 
+# Estilo con imagen pixel-art (se estira por el centro y mantiene las esquinas). Devuelve null si la imagen no existe.
+const BORDE_9: int = 8   # píxeles de la imagen que son "esquina/borde" y no se estiran
+
+func _caja_tex(ruta: String, tinte: Color = Color(1, 1, 1)) -> StyleBoxTexture:
+	if not ResourceLoader.exists(ruta):
+		return null
+	var s = StyleBoxTexture.new()
+	s.texture = load(ruta)
+	s.texture_margin_left = BORDE_9
+	s.texture_margin_right = BORDE_9
+	s.texture_margin_top = BORDE_9
+	s.texture_margin_bottom = BORDE_9
+	s.content_margin_left = 14
+	s.content_margin_right = 14
+	s.content_margin_top = 10
+	s.content_margin_bottom = 10
+	s.modulate_color = tinte
+	return s
+
+# Barras con imagen: assets/ui/barra_fondo.png (vacía) y assets/ui/barra_relleno.png (parte llena).
+const BORDE_BARRA: int = 2   # píxeles de borde de la imagen de la barra que no se estiran
+
+func _caja_barra(ruta: String) -> StyleBoxTexture:
+	if not ResourceLoader.exists(ruta):
+		return null
+	var s = StyleBoxTexture.new()
+	s.texture = load(ruta)
+	s.texture_margin_left = BORDE_BARRA
+	s.texture_margin_right = BORDE_BARRA
+	s.texture_margin_top = BORDE_BARRA
+	s.texture_margin_bottom = BORDE_BARRA
+	return s
+
+func _estilo_barra(b: ProgressBar) -> void:
+	var fondo: StyleBoxTexture = _caja_barra("res://assets/ui/barra_fondo.png")
+	var relleno: StyleBoxTexture = _caja_barra("res://assets/ui/barra_relleno.png")
+	if fondo != null:
+		b.add_theme_stylebox_override("background", fondo)
+	if relleno != null:
+		b.add_theme_stylebox_override("fill", relleno)
+
+# Textura del icono: primero la del Inspector; si no hay, assets/ui/icono_<id>.png; si no, null (usa emoji).
+func _textura_icono(id: String) -> Texture2D:
+	var t: Texture2D = null
+	match id:
+		"soporte": t = icono_soporte
+		"celdas": t = icono_celdas
+		"filtros": t = icono_filtros
+		"instrumentos": t = icono_instrumentos
+	if t == null:
+		var ruta: String = "res://assets/ui/icono_%s.png" % id
+		if ResourceLoader.exists(ruta):
+			t = load(ruta)
+	return t
+
+# Ranura cuadrada: marco (tu imagen) + icono centrado adentro.
+func _ranura_icono(id: String) -> PanelContainer:
+	var p = PanelContainer.new()
+	p.custom_minimum_size = Vector2(TAM_RANURA, TAM_RANURA)
+	p.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var marco: Texture2D = marco_icono
+	if marco == null and ResourceLoader.exists("res://assets/ui/marco_icono.png"):
+		marco = load("res://assets/ui/marco_icono.png")
+	if marco != null:
+		var s = StyleBoxTexture.new()
+		s.texture = marco
+		s.texture_margin_left = BORDE_MARCO
+		s.texture_margin_right = BORDE_MARCO
+		s.texture_margin_top = BORDE_MARCO
+		s.texture_margin_bottom = BORDE_MARCO
+		s.content_margin_left = 4
+		s.content_margin_right = 4
+		s.content_margin_top = 4
+		s.content_margin_bottom = 4
+		p.add_theme_stylebox_override("panel", s)
+	else:
+		var f: StyleBoxFlat = _caja(Color(0.04, 0.06, 0.1, 0.9), C_BORDE, 2, 2)
+		f.content_margin_left = 4
+		f.content_margin_right = 4
+		f.content_margin_top = 4
+		f.content_margin_bottom = 4
+		p.add_theme_stylebox_override("panel", f)
+	var tex: Texture2D = _textura_icono(id)
+	if tex != null:
+		var icono = TextureRect.new()
+		icono.texture = tex
+		icono.custom_minimum_size = Vector2(TAM_ICONO, TAM_ICONO)
+		icono.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icono.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icono.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		icono.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		p.add_child(icono)
+	else:
+		var e = Label.new()
+		e.text = String(ICONOS.get(id, "?"))
+		e.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		e.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		p.add_child(e)
+	return p
+
 func _panel(padre: Control, fondo: Color = C_PANEL, borde: Color = C_BORDE) -> VBoxContainer:
 	var p = PanelContainer.new()
 	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	p.add_theme_stylebox_override("panel", _caja(fondo, borde))
+	var estilo: StyleBox = _caja_tex("res://assets/ui/panel.png", Color(1, 1, 1) if fondo == C_PANEL else Color(1.2, 1.2, 1.2))
+	if estilo == null:
+		estilo = _caja(fondo, borde)
+	p.add_theme_stylebox_override("panel", estilo)
 	padre.add_child(p)
 	var v = VBoxContainer.new()
 	v.add_theme_constant_override("separation", 6)
@@ -115,6 +229,21 @@ func _texto(padre: Control, texto: String, color: Color = Color(1, 1, 1)) -> Lab
 	return l
 
 func _estilo_boton(b: Button, color: Color, borde: Color) -> void:
+	var ruta: String = "res://assets/ui/boton_iniciar.png" if b.text == "INICIAR MISIÓN" else "res://assets/ui/boton.png"
+	if not ResourceLoader.exists(ruta):
+		ruta = "res://assets/ui/boton.png"
+	var normal: StyleBoxTexture = _caja_tex(ruta)
+	if normal != null:
+		b.add_theme_stylebox_override("normal", normal)
+		b.add_theme_stylebox_override("hover", _caja_tex(ruta, Color(1.25, 1.25, 1.25)))
+		b.add_theme_stylebox_override("pressed", _caja_tex(ruta, Color(0.7, 0.7, 0.7)))
+		b.add_theme_stylebox_override("disabled", _caja_tex(ruta, Color(0.4, 0.4, 0.4)))
+		# Color del texto sobre la imagen. Si tu botón es CLARO usa un color oscuro; si es OSCURO, cambia esto a Color(1, 1, 1).
+		var texto_boton: Color = COLOR_TEXTO_BOTON
+		for estado in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
+			b.add_theme_color_override(estado, texto_boton)
+		b.add_theme_color_override("font_disabled_color", texto_boton.lightened(0.4))
+		return
 	b.add_theme_stylebox_override("normal", _caja(color, borde))
 	b.add_theme_stylebox_override("hover", _caja(color.lightened(0.2), borde))
 	b.add_theme_stylebox_override("pressed", _caja(color.darkened(0.2), borde))
@@ -203,7 +332,12 @@ func _construir_personalizada(col: VBoxContainer) -> void:
 		var id: String = c["id"]
 		var tarjeta = _panel(fila, C_PANEL_CLARO)
 		tarjeta.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		_texto(tarjeta, "%s %s" % [ICONOS.get(id, ""), c["nombre"]])
+		var cabeza = HBoxContainer.new()
+		cabeza.add_theme_constant_override("separation", 8)
+		tarjeta.add_child(cabeza)
+		cabeza.add_child(_ranura_icono(id))
+		var nombre_c = _texto(cabeza, String(c["nombre"]))
+		nombre_c.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		var linea = HBoxContainer.new()
 		tarjeta.add_child(linea)
 		var nivel = Label.new()
@@ -225,6 +359,7 @@ func _construir_personalizada(col: VBoxContainer) -> void:
 		barra.max_value = float(c["max"])
 		barra.show_percentage = false
 		barra.custom_minimum_size = Vector2(0, 12)
+		_estilo_barra(barra)
 		tarjeta.add_child(barra)
 		etiquetas_nivel[id] = nivel
 		barras_nivel[id] = barra
@@ -251,6 +386,11 @@ func _construir_resumen(col: VBoxContainer) -> void:
 	sin_tiempo.tooltip_text = "Sin temporizador en las decisiones"
 	sin_tiempo.button_pressed = GameManager.modo_sin_temporizador
 	sin_tiempo.toggled.connect(_on_modo_sin_tiempo)
+	# Interruptor con tus imágenes: assets/ui/switch_on.png (activado) y assets/ui/switch_off.png (apagado)
+	for par in [["checked", "switch_on"], ["checked_disabled", "switch_on"], ["unchecked", "switch_off"], ["unchecked_disabled", "switch_off"]]:
+		var ruta_sw: String = "res://assets/ui/%s.png" % par[1]
+		if ResourceLoader.exists(ruta_sw):
+			sin_tiempo.add_theme_icon_override(par[0], load(ruta_sw))
 	der.add_child(sin_tiempo)
 	_texto(der, "Sin temporizador\nen las decisiones", C_TEXTO_SUAVE)
 
