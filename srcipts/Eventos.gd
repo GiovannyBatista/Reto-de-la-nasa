@@ -1,568 +1,95 @@
 extends Node
-# Datos de los 14 días de la misión (documentación de LAST SIGNAL).
-# La comunicadora puede editar los textos (situacion, texto, descripcion, evidencia)
-# y el ingeniero industrial los números dentro de "efecto".
+# Datos de la misión (Autoload "Eventos").
+# - banco: 60 decisiones del documento "Banco de decisiones" (30 de nave + 30 de recursos).
+#   El juego sortea una por día de nave y una de recursos, según el estado de la partida.
+# - hitos: 5 decisiones fijas de la historia (días 1, 4, 8, 10 y 14).
 #
-# Formato de "efecto":
-#   "nave": barras de la nave (agua, comida, oxigeno, electricidad) y extras
-#           (salud_sistemas, ciencia, riesgo_estructural, riesgo_aborto, riesgo_catastrofico)
-#   "tripulacion": un tripulante (elena, marcus, sofia, leo) o "todos", con hambre, estres, salud
-#   "muestras", "abortar", "forzar_final": banderas especiales
-# "categoria": tipo de emergencia; si Orion tiene la mejora que la protege, el daño baja 40%.
+# Cada decisión tiene: id, categoria, tema, gravedad, dia_min/dia_max, tiempo_s (segundos para decidir),
+# responsable, texto, foco (recurso principal) y opciones.
+# Cada opción tiene: texto, trampa, mods (cambian la probabilidad según el estado), por_que y
+# resultados con tres niveles: bueno / intermedio / malo (los efectos de cada uno).
+# Los hitos usan "tier_fijo": su resultado ya está decidido (no se tira dado).
+#
+# Efectos posibles: oxigeno, agua, comida, electricidad, combustible, temperatura, integridad, datos,
+# ciencia, filtros, estres_todos, salud_todos, hambre_todos, estres_<nombre>, salud_<nombre>,
+# confianza_<nombre>, reparaciones_dias, modulo_dias, enlace_dias, abortar, forzar_final.
 
-var dias: Array = [
- {
-  "dia": 1,
-  "titulo": "Inserción Orbital (El Despegue)",
-  "categoria": "energia",
-  "protagonistas": [
-   "leo",
-   "marcus"
-  ],
-  "situacion": "La cápsula Orion alcanza la órbita terrestre baja. Leo Okafor quiere encender de inmediato los espectrómetros para calibrar datos antes de la inyección translunar; Marcus Chen advierte que el consumo de batería inicial es riesgoso.",
-  "opcion_buena": {
-   "texto": "Priorizar sistemas de soporte vital y navegación",
-   "descripcion": "Esperar a estabilizar los paneles solares antes de encender instrumentos científicos.",
-   "efecto": {
-	"nave": {
-	 "electricidad": -5
-	},
-	"tripulacion": {
-	 "leo": {
-	  "estres": 10
-	 }
-	}
-   },
-   "impacto_texto": "Electricidad -5%, Estrés de Leo +10%",
-   "evidencia": "Protocolo correcto: La estabilización térmica y energética tras el lanzamiento es crítica antes de activar cargas útiles (NASA Artemis Flight Rules).",
-   "fuente": ""
-  },
-  "opcion_mala": {
-   "texto": "Encender todos los sensores a máxima potencia",
-   "descripcion": "Darle gusto a Leo para empezar la ciencia desde el primer minuto.",
-   "efecto": {
-	"nave": {
-	 "electricidad": -25,
-	 "salud_sistemas": -10
-	}
-   },
-   "impacto_texto": "Electricidad -25%, Salud de sistemas -10%",
-   "evidencia": "Error de gestión: El pico de demanda energético sobrecarga las celdas de combustible antes del despliegue total de paneles.",
-   "fuente": ""
-  }
- },
- {
-  "dia": 2,
-  "titulo": "La Sombra del Hambre (Escasez de Comida)",
-  "categoria": "comida",
-  "protagonistas": [
-   "sofia"
-  ],
-  "situacion": "La Dra. Sofía Reyes nota que el estrés del lanzamiento provocó un consumo calórico 15% superior al previsto en las raciones liofilizadas.",
-  "opcion_buena": {
-   "texto": "Racionamiento estricto",
-   "descripcion": "Ajustar las porciones al mínimo técnico recomendado y modificar la dieta para bajar el cociente respiratorio.",
-   "efecto": {
-	"nave": {
-	 "comida": -5
-	},
-	"tripulacion": {
-	 "todos": {
-	  "hambre": 15,
-	  "estres": 10
-	 }
-	}
-   },
-   "impacto_texto": "Comida -5%, Hambre +15%, Estrés +10%",
-   "evidencia": "La reducción controlada de calorías estabiliza el consumo metabólico en misiones de larga duración sin comprometer funciones vitales.",
-   "fuente": "https://www.nasa.gov/wp-content/uploads/2023/07/eclss-technical-brief-ochmo.pdf"
-  },
-  "opcion_mala": {
-   "texto": "Mantener porciones normales",
-   "descripcion": "Permitir que coman a voluntad para mantener alta la moral.",
-   "efecto": {
-	"nave": {
-	 "comida": -25
-	}
-   },
-   "impacto_texto": "Comida -25%, Hambre 0%",
-   "evidencia": "Agotamiento prematuro de las despensas antes de alcanzar la órbita lunar.",
-   "fuente": ""
-  }
- },
- {
-  "dia": 3,
-  "titulo": "El Aliento Falso (Fuga de Oxígeno)",
-  "categoria": "casco",
-  "protagonistas": [],
-  "situacion": "Una microfisura en una válvula del módulo de servicio provoca una caída constante en la presión parcial de oxígeno (ppO2).",
-  "opcion_buena": {
-   "texto": "Protocolo de aislamiento y cascos",
-   "descripcion": "Ordenar a la tripulación ponerse los cascos de emergencia, aislar el sector y usar sellador interno.",
-   "efecto": {
-	"nave": {
-	 "oxigeno": -10
-	},
-	"tripulacion": {
-	 "todos": {
-	  "estres": 15
-	 }
-	}
-   },
-   "impacto_texto": "Oxígeno -10%, Estrés +15%",
-   "evidencia": "El uso inmediato de máscaras de respiración y aislamiento de módulos preserva el tiempo de reserva ante caídas de presión.",
-   "fuente": "https://ntrs.nasa.gov/api/citations/20200011599/downloads/20200011599.pdf"
-  },
-  "opcion_mala": {
-   "texto": "Buscar la fuga sin protección",
-   "descripcion": "Intentar tapar la válvula manualmente sin ponerse los cascos.",
-   "efecto": {
-	"nave": {
-	 "oxigeno": -35
-	},
-	"tripulacion": {
-	 "todos": {
-	  "salud": -20
-	 }
-	}
-   },
-   "impacto_texto": "Oxígeno -35%, Salud de todos -20%",
-   "evidencia": "La exposición a baja presión parcial de oxígeno induce hipoxia aguda y pérdida de consciencia en minutos.",
-   "fuente": ""
-  }
- },
- {
-  "dia": 4,
-  "titulo": "Corrección de Trayectoria (Cruce Lunar)",
-  "categoria": "trayectoria",
-  "protagonistas": [
-   "elena"
-  ],
-  "situacion": "La nave entra en la esfera de influencia gravitacional de la Luna. Elena Marín debe ejecutar un encendido de motores para alinear la órbita.",
-  "opcion_buena": {
-   "texto": "Encendido calculado por computadora",
-   "descripcion": "Confiar en la telemetría automatizada aunque tome 2 horas más de ajuste.",
-   "efecto": {
-	"nave": {
-	 "agua": -5,
-	 "electricidad": -5
-	}
-   },
-   "impacto_texto": "Agua -5% (refrigeración), Electricidad -5%",
-   "evidencia": "Las maniobras automatizadas de baja aceleración optimizan el propelente y reducen la fatiga estructural del casco.",
-   "fuente": ""
-  },
-  "opcion_mala": {
-   "texto": "Maniobra manual agresiva",
-   "descripcion": "Forzar los propulsores principales para ganar tiempo.",
-   "efecto": {
-	"nave": {
-	 "electricidad": -20,
-	 "riesgo_estructural": 25
-	}
-   },
-   "impacto_texto": "Electricidad -20%, Riesgo de daño estructural +25%",
-   "evidencia": "El empuje manual excesivo genera vibraciones innecesarias y desperdicia reservas críticas de retorno.",
-   "fuente": ""
-  }
- },
- {
-  "dia": 5,
-  "titulo": "Furia en el Sol (Tormenta Solar)",
-  "categoria": "radiacion",
-  "protagonistas": [],
-  "situacion": "Una eyección de masa coronal libera radiación ionizante directa hacia la trayectoria de la Orion.",
-  "opcion_buena": {
-   "texto": "Refugio en el núcleo de agua y apagón parcial",
-   "descripcion": "Reubicar a los 4 tripulantes tras los tanques de agua potable y apagar sistemas no esenciales.",
-   "efecto": {
-	"nave": {
-	 "electricidad": -10
-	},
-	"tripulacion": {
-	 "todos": {
-	  "estres": 15
-	 }
-	}
-   },
-   "impacto_texto": "Electricidad -10%, Estrés +15%",
-   "evidencia": "El agua y los materiales ricos en hidrógeno son el escudo más eficaz contra protones solares en espacio profundo.",
-   "fuente": "https://www.nasa.gov/reference/3-0-health-and-medical-care/"
-  },
-  "opcion_mala": {
-   "texto": "Seguir operando a plena potencia",
-   "descripcion": "Ignorar la alerta para no interrumpir la transmisión de datos.",
-   "efecto": {
-	"tripulacion": {
-	 "todos": {
-	  "salud": -35
-	 }
-	}
-   },
-   "impacto_texto": "Salud de todos -35%",
-   "evidencia": "La exposición sin blindaje provoca síndrome de radiación aguda y daños celulares irreversibles.",
-   "fuente": ""
-  }
- },
- {
-  "dia": 6,
-  "titulo": "Apagón en la Consola (Falla Eléctrica)",
-  "categoria": "energia",
-  "protagonistas": [],
-  "situacion": "Un cortocircuito en el bus principal deja fuera de servicio los paneles secundarios de la cabina.",
-  "opcion_buena": {
-   "texto": "Aislamiento y reinicio por módulos",
-   "descripcion": "Desconectar cargas no esenciales y redirigir energía desde las celdas de combustible auxiliares.",
-   "efecto": {
-	"nave": {
-	 "electricidad": -10
-	},
-	"tripulacion": {
-	 "todos": {
-	  "estres": 10
-	 }
-	}
-   },
-   "impacto_texto": "Electricidad -10%, Estrés +10%",
-   "evidencia": "Aislar los buses defectuosos evita fallos en cascada en el sistema de soporte vital.",
-   "fuente": "https://www.nasa.gov/wp-content/uploads/2023/07/eclss-technical-brief-ochmo.pdf"
-  },
-  "opcion_mala": {
-   "texto": "Puentear el circuito a la fuerza",
-   "descripcion": "Forzar el paso de corriente con todos los equipos encendidos.",
-   "efecto": {
-	"nave": {
-	 "electricidad": -40,
-	 "oxigeno": -15
-	}
-   },
-   "impacto_texto": "Electricidad -40%, Oxígeno -15% (por humo/conato)",
-   "evidencia": "Sobrecargar un bus en cortocircuito provoca incendios eléctricos en microgravedad.",
-   "fuente": ""
-  }
- },
- {
-  "dia": 7,
-  "titulo": "Impacto en Gravedad Cero (Astronauta Lesionado)",
-  "categoria": "medico",
-  "protagonistas": [
-   "marcus",
-   "sofia"
-  ],
-  "situacion": "Al asegurar las muestras lunares recién recolectadas, Marcus Chen sufre un golpe fuerte contra un mamparo, fracturándose una costilla.",
-  "opcion_buena": {
-   "texto": "Inmovilización y uso de kit médico",
-   "descripcion": "La Dra. Sofía Reyes aplica férula de vacío, analgésicos y ordena reposo absoluto de 48 horas.",
-   "efecto": {
-	"tripulacion": {
-	 "marcus": {
-	  "salud": -10
-	 }
-	}
-   },
-   "impacto_texto": "Salud de Marcus -10% (estabilizada), Eficiencia de reparaciones -20% por 2 días",
-   "evidencia": "La estabilización temprana evita complicaciones internas en entornos sin gravedad.",
-   "fuente": "https://www.nasa.gov/reference/3-0-health-and-medical-care/"
-  },
-  "opcion_mala": {
-   "texto": "Obligarlo a seguir trabajando",
-   "descripcion": "Exigir que Marcus continúe operando los paneles de control sin descanso.",
-   "efecto": {
-	"tripulacion": {
-	 "marcus": {
-	  "salud": -45
-	 },
-	 "sofia": {
-	  "estres": 25
-	 }
-	}
-   },
-   "impacto_texto": "Salud de Marcus -45%, Estrés de Sofía +25%",
-   "evidencia": "El esfuerzo físico con traumatismo torácico en microgravedad compromete la capacidad respiratoria.",
-   "fuente": ""
-  }
- },
- {
-  "dia": 8,
-  "titulo": "Muestreo en Órbita Baja (Dilema Científico)",
-  "categoria": "ciencia",
-  "protagonistas": [
-   "leo"
-  ],
-  "situacion": "Sobrevuelan el polo sur lunar. Leo pide extender 3 horas la recolección espectral y de regolito; el oxígeno de cabina está justo en el margen.",
-  "opcion_buena": {
-   "texto": "Recolección dentro de ventana segura",
-   "descripcion": "Tomar únicamente las muestras prioritarias y cerrar compuertas a tiempo.",
-   "efecto": {
-	"nave": {
-	 "oxigeno": -10,
-	 "ciencia": 35
-	},
-	"muestras": true
-   },
-   "impacto_texto": "Oxígeno -10%, Progreso científico +35%",
-   "evidencia": "Cumplir los tiempos límite de actividad garantiza el margen de reserva para el encendido de retorno.",
-   "fuente": ""
-  },
-  "opcion_mala": {
-   "texto": "Extender la operación al límite",
-   "descripcion": "Quedarse hasta agotar las baterías de los sensores.",
-   "efecto": {
-	"nave": {
-	 "oxigeno": -30,
-	 "electricidad": -25
-	},
-	"muestras": true
-   },
-   "impacto_texto": "Oxígeno -30%, Electricidad -25%",
-   "evidencia": "Exceder las ventanas operativas deja a la tripulación sin margen ante emergencias de regreso.",
-   "fuente": ""
-  }
- },
- {
-  "dia": 9,
-  "titulo": "Silencio en la Radio (Pérdida de Comunicación)",
-  "categoria": "comunicaciones",
-  "protagonistas": [
-   "leo"
-  ],
-  "situacion": "La antena de alta ganancia se desalinea por vibración orbital, cortando el enlace de voz y telemetría con Houston.",
-  "opcion_buena": {
-   "texto": "Navegación autónoma y antena omnidireccional",
-   "descripcion": "Confiar en las estrellas guía de a bordo y enviar pulsos básicos de estado.",
-   "efecto": {
-	"tripulacion": {
-	 "leo": {
-	  "estres": 20
-	 }
-	}
-   },
-   "impacto_texto": "Estrés de Leo +20%, Recursos intactos",
-   "evidencia": "Las naves de espacio profundo están diseñadas para operar de forma autónoma sin contacto continuo con Tierra.",
-   "fuente": "https://www.nasa.gov/wp-content/uploads/2023/07/eclss-technical-brief-ochmo.pdf"
-  },
-  "opcion_mala": {
-   "texto": "Gastar propulsión girando la nave a ciegas",
-   "descripcion": "Realizar maniobras bruscas buscando recuperar señal rápida.",
-   "efecto": {
-	"nave": {
-	 "electricidad": -15,
-	 "riesgo_aborto": 30
-	}
-   },
-   "impacto_texto": "Electricidad -15%, Riesgo de aborto de misión +30%",
-   "evidencia": "Gastar control de actitud sin vectores confirmados desorienta los sensores ópticos.",
-   "fuente": ""
-  }
- },
- {
-  "dia": 10,
-  "titulo": "Encendido de Retorno (El Punto de No Retorno)",
-  "categoria": "retorno",
-  "protagonistas": [
-   "elena"
-  ],
-  "situacion": "Es hora de abandonar la órbita lunar.",
-  "opcion_buena": {
-   "texto": "Ejecutar encendido nominal de regreso",
-   "descripcion": "Encender el motor principal siguiendo la ventana orbital exacta.",
-   "efecto": {
-	"nave": {
-	 "electricidad": -10,
-	 "agua": -5
-	}
-   },
-   "impacto_texto": "Electricidad -10%, Agua -5%",
-   "evidencia": "La trayectoria de retorno libre aprovecha la gravedad terrestre para minimizar el gasto de recursos.",
-   "fuente": ""
-  },
-  "opcion_mala": {
-   "texto": "Acelerar consumo para llegar antes",
-   "descripcion": "Forzar sistemas de soporte vital al máximo para acortar tiempos de revisión.",
-   "efecto": {
-	"nave": {
-	 "agua": -20,
-	 "oxigeno": -20
-	}
-   },
-   "impacto_texto": "Agua -20%, Oxígeno -20%",
-   "evidencia": "No es posible acortar mecánicamente el tránsito translunar sin comprometer la integridad del escudo térmico.",
-   "fuente": ""
-  },
-  "opcion_abortar": {
-   "texto": "Abortar la carga científica",
-   "descripcion": "Soltar la carga científica para aligerar peso y priorizar la supervivencia de la tripulación.",
-   "efecto": {
-	"abortar": true,
-	"muestras": false
-   },
-   "impacto_texto": "Misión abortada: ruta hacia el Final Intermedio",
-   "evidencia": "",
-   "fuente": "",
-   "solo_si_alguna_barra_menor_que": 25,
-   "barras": [
-	"agua",
-	"comida",
-    "oxigeno"
-   ]
-  }
- },
- {
-  "dia": 11,
-  "titulo": "Calor Sofocante (Sobrecalentamiento)",
-  "categoria": "termico",
-  "protagonistas": [],
-  "situacion": "Un fallo en los radiadores externos impide disipar el calor de la aviónica; la cabina sube a 34 °C.",
-  "opcion_buena": {
-   "texto": "Apagar computadoras secundarias y purgar refrigerante",
-   "descripcion": "Reducir consumo electrónico y aumentar flujo en los intercambiadores de agua.",
-   "efecto": {
-	"nave": {
-	 "agua": -10
-	},
-	"tripulacion": {
-	 "todos": {
-	  "estres": 10
-	 }
-	}
-   },
-   "impacto_texto": "Agua -10%, Estrés +10%",
-   "evidencia": "Reducir la carga térmica interna evita el colapso de los procesadores de vuelo.",
-   "fuente": "https://www.nasa.gov/wp-content/uploads/2023/07/eclss-technical-brief-ochmo.pdf"
-  },
-  "opcion_mala": {
-   "texto": "Mantener todos los equipos encendidos",
-   "descripcion": "Confiar en que la ventilación interna estabilizará el ambiente sola.",
-   "efecto": {
-	"nave": {
-	 "electricidad": -25
-	},
-	"tripulacion": {
-	 "todos": {
-	  "salud": -20
-	 }
-	}
-   },
-   "impacto_texto": "Salud de todos -20%, Electricidad -25%",
-   "evidencia": "El estrés térmico elevado reduce drásticamente la capacidad cognitiva de la tripulación.",
-   "fuente": ""
-  }
- },
- {
-  "dia": 12,
-  "titulo": "Gotas Contadas (Escasez de Agua)",
-  "categoria": "agua",
-  "protagonistas": [],
-  "situacion": "Una obstrucción en el sistema de reciclaje de agua (WRS) reduce la recuperación diaria a la mitad.",
-  "opcion_buena": {
-   "texto": "Suspender higiene y usar reservas de hidratación",
-   "descripcion": "Destinar el agua exclusivamente a beber y rehidratar comida.",
-   "efecto": {
-	"nave": {
-	 "agua": -5
-	},
-	"tripulacion": {
-	 "todos": {
-	  "estres": 15
-	 }
-	}
-   },
-   "impacto_texto": "Agua -5%, Estrés +15%",
-   "evidencia": "El mínimo vital de supervivencia es de 2.5 litros diarios por astronauta; la higiene es prescindible en contingencia.",
-   "fuente": "https://www.nasa.gov/wp-content/uploads/2023/12/ochmo-tb-027-water.pdf"
-  },
-  "opcion_mala": {
-   "texto": "Mantener consumo normal sin reparar el filtro",
-   "descripcion": "Seguir gastando agua en limpieza personal.",
-   "efecto": {
-	"nave": {
-	 "agua": -30
-	},
-	"tripulacion": {
-	 "todos": {
-	  "salud": -15
-	 }
-	}
-   },
-   "impacto_texto": "Agua -30%, Salud de todos -15%",
-   "evidencia": "La deshidratación severa altera el volumen sanguíneo y provoca síncopes durante la reentrada.",
-   "fuente": ""
-  }
- },
- {
-  "dia": 13,
-  "titulo": "Cicatrices en el Casco (Daño Estructural)",
-  "categoria": "casco",
-  "protagonistas": [],
-  "situacion": "Un micrometeorito golpea cerca del anillo de unión del escudo térmico, activando una alarma de integridad estructural.",
-  "opcion_buena": {
-   "texto": "Inspección con ultrasonido y sellado de polímero",
-   "descripcion": "Revisar desde el interior, aplicar resina de refuerzo y limitar movimientos bruscos.",
-   "efecto": {
-	"nave": {
-	 "electricidad": -10
-	},
-	"tripulacion": {
-	 "todos": {
-	  "estres": 10
-	 }
-	}
-   },
-   "impacto_texto": "Electricidad -10%, Estrés +10%",
-   "evidencia": "Verificar la integridad del escudo térmico antes de tocar atmósfera es obligatorio para evitar desintegración.",
-   "fuente": "https://ntrs.nasa.gov/api/citations/20200011599/downloads/20200011599.pdf"
-  },
-  "opcion_mala": {
-   "texto": "Ignorar la alarma por considerarla menor",
-   "descripcion": "No revisar el mamparo para ahorrar energía.",
-   "efecto": {
-	"nave": {
-	 "riesgo_catastrofico": 60
-	}
-   },
-   "impacto_texto": "Probabilidad de fracaso catastrófico en Día 14 +60%",
-   "evidencia": "Cualquier brecha sin sellar en el escudo térmico permite la entrada de plasma a 2.700 °C durante el descenso.",
-   "fuente": ""
-  }
- },
- {
-  "dia": 14,
-  "titulo": "El Aire Pesado y la Reentrada (Acumulación de CO2 + Desenlace)",
-  "categoria": "co2",
-  "protagonistas": [],
-  "situacion": "A horas de entrar en la atmósfera terrestre, los filtros de hidróxido de litio (scrubbers) que limpian el dióxido de carbono se saturan por completo.",
-  "opcion_buena": {
-   "texto": "Rotar cartuchos de respaldo y reposo absoluto",
-   "descripcion": "Instalar los últimos filtros de emergencia y ordenar respiración calmada sin actividad física.",
-   "efecto": {
-	"nave": {
-	 "oxigeno": -5
-	}
-   },
-   "impacto_texto": "Oxígeno -5%, Fin de misión alcanzado",
-   "evidencia": "Reducir la tasa metabólica disminuye la exhalación de CO2 mientras los filtros de reserva estabilizan la cabina.",
-   "fuente": "https://www.nasa.gov/wp-content/uploads/2023/07/eclss-technical-brief-ochmo.pdf"
-  },
-  "opcion_mala": {
-   "texto": "Mantener actividad física y maniobras intensas sin cambiar filtros",
-   "descripcion": "Seguir operando a máximo ritmo respiratorio.",
-   "efecto": {
-	"tripulacion": {
-	 "todos": {
-	  "salud": -50
-	 }
-	},
-	"forzar_final": "malo"
-   },
-   "impacto_texto": "Salud de todos -50% (hipercapnia), disparando el Final Malo justo antes del amerizaje",
-   "evidencia": "La acumulación de CO2 provoca intoxicación aguda, pérdida de visión y muerte por asfixia.",
-   "fuente": ""
-  }
- }
+var banco: Array = [
+	{"id": "N01_fuga_o2", "categoria": "nave", "tema": "Despresurización", "gravedad": 3, "dia_min": 2, "dia_max": 13, "tiempo_s": 10, "responsable": "marcus", "texto": "Un silbido agudo atraviesa el zumbido de los ventiladores. La presión parcial de oxígeno cae sin parar y no sabes cuánto tiempo hay.", "foco": "oxigeno", "opciones": [{"id": "A", "texto": "Cascos de emergencia, aislar el módulo y aplicar sellador", "trampa": false, "mods": [{"v": "oxigeno", "op": "<", "x": 25.0, "m": -0.3}], "por_que": "Aísla el problema y protege la respiración, pero gasta oxígeno de reserva mientras se sella y deja sin acceso al módulo.", "resultados": {"bueno": {"oxigeno": -8, "estres_todos": 12, "modulo_dias": 2}, "intermedio": {"oxigeno": -15, "estres_todos": 16, "modulo_dias": 3}, "malo": {"oxigeno": -22, "estres_todos": 20, "modulo_dias": 3}}}, {"id": "B", "texto": "Bajar a propósito la presión de cabina para frenar la fuga y reparar sin casco", "trampa": false, "mods": [{"v": "salud_prom", "op": "<", "x": 60.0, "m": -0.4}], "por_que": "Menos presión reduce la pérdida, pero la hipoxia llega rápido si la reparación se alarga.", "resultados": {"bueno": {"oxigeno": -5, "salud_todos": -3, "estres_todos": 8}, "intermedio": {"oxigeno": -12, "salud_todos": -11, "estres_todos": 12}, "malo": {"oxigeno": -18, "salud_todos": -18, "estres_todos": 15}}}, {"id": "C", "texto": "Cerrar el módulo de servicio de forma definitiva y vivir con lo que queda", "trampa": false, "mods": [{"v": "oxigeno", "op": "<", "x": 25.0, "m": 0.3}], "por_que": "Corta la fuga de raíz, pero pierdes la electricidad y el agua que pasan por ese módulo.", "resultados": {"bueno": {"oxigeno": -4, "electricidad": -8, "agua": -4, "modulo_dias": 6}, "intermedio": {"oxigeno": -7, "electricidad": -12, "agua": -6, "modulo_dias": 6}, "malo": {"oxigeno": -10, "electricidad": -15, "agua": -8, "modulo_dias": 6}}}]},
+	{"id": "N02_bus_electrico", "categoria": "nave", "tema": "Arquitectura eléctrica", "gravedad": 2, "dia_min": 3, "dia_max": 13, "tiempo_s": 15, "responsable": "marcus", "texto": "Un cortocircuito deja fuera de servicio el bus principal. Las luces parpadean y los paneles de la cabina se apagan uno a uno.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Aislar el bus y reiniciar por módulos", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 25.0, "m": -0.3}], "por_que": "Evita fallos en cascada en el soporte vital, pero cada reinicio consume energía y tiempo.", "resultados": {"bueno": {"electricidad": -8, "estres_todos": 8, "reparaciones_dias": 1}, "intermedio": {"electricidad": -13, "estres_todos": 11, "reparaciones_dias": 2}, "malo": {"electricidad": -18, "estres_todos": 14, "reparaciones_dias": 2}}}, {"id": "B", "texto": "Pasar a baterías de reserva y apagar todo menos soporte vital", "trampa": false, "mods": [{"v": "electricidad", "op": ">", "x": 50.0, "m": 0.3}], "por_que": "Protege lo esencial al instante, pero sacrifica datos y ciencia y deja poco margen si algo más falla.", "resultados": {"bueno": {"electricidad": -12, "datos": -10, "ciencia": -5}, "intermedio": {"electricidad": -16, "datos": -18, "ciencia": -8}, "malo": {"electricidad": -20, "datos": -25, "ciencia": -10}}}, {"id": "C", "texto": "Puentear el circuito dañado con carga reducida", "trampa": false, "mods": [{"v": "dias_restantes", "op": "<", "x": 4.0, "m": 0.4}], "por_que": "Si funciona, recuperas todo rápido. Si no, un cortocircuito en microgravedad puede provocar humo o fuego.", "resultados": {"bueno": {"electricidad": -10, "estres_todos": 10}, "intermedio": {"electricidad": -25, "estres_todos": 15, "oxigeno": -8}, "malo": {"electricidad": -40, "oxigeno": -15, "estres_todos": 20}}}]},
+	{"id": "N03_radiador", "categoria": "nave", "tema": "Control térmico", "gravedad": 2, "dia_min": 4, "dia_max": 13, "tiempo_s": 15, "responsable": "marcus", "texto": "Un radiador externo deja de disipar calor. La aviónica se calienta y la cabina sube a 33 °C.", "foco": "agua", "opciones": [{"id": "A", "texto": "Apagar computadoras secundarias y aumentar el flujo de agua refrigerante", "trampa": false, "mods": [{"v": "agua", "op": "<", "x": 25.0, "m": -0.4}], "por_que": "Baja la carga térmica con rapidez, pero gasta agua y pierdes capacidad de cómputo.", "resultados": {"bueno": {"agua": -8, "estres_todos": 8, "datos": -8}, "intermedio": {"agua": -12, "estres_todos": 10, "datos": -12}, "malo": {"agua": -15, "estres_todos": 12, "datos": -15}}}, {"id": "B", "texto": "Girar la nave para dar sombra al radiador", "trampa": false, "mods": [{"v": "combustible", "op": "<", "x": 25.0, "m": -0.4}, {"v": "combustible", "op": ">", "x": 50.0, "m": 0.3}], "por_que": "Usa la orientación como solución pasiva, pero gasta combustible y puede desalinear la antena.", "resultados": {"bueno": {"combustible": -6, "temperatura": -3}, "intermedio": {"combustible": -9, "temperatura": -2, "electricidad": -3}, "malo": {"combustible": -12, "temperatura": -1, "electricidad": -5}}}, {"id": "C", "texto": "Reducir la actividad de la tripulación y dejar que la cabina se enfríe sola", "trampa": false, "mods": [{"v": "temperatura", "op": ">", "x": 30.0, "m": -0.4}], "por_que": "No gasta recursos, pero el calor sostenido reduce el rendimiento y la salud de la tripulación.", "resultados": {"bueno": {"temperatura": -2, "estres_todos": 10, "ciencia": -5}, "intermedio": {"estres_todos": 13, "ciencia": -3, "salud_todos": -6}, "malo": {"temperatura": 2, "salud_todos": -12, "estres_todos": 15}}}]},
+	{"id": "N04_micrometeorito", "categoria": "nave", "tema": "Integridad estructural", "gravedad": 3, "dia_min": 5, "dia_max": 13, "tiempo_s": 10, "responsable": "marcus", "texto": "Un micrometeorito golpea cerca del anillo del escudo térmico. Saltan las alarmas de integridad estructural.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Inspección con ultrasonido y sellado con resina", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 25.0, "m": -0.4}], "por_que": "Verificar el escudo antes de la reentrada es obligatorio, pero la inspección consume energía y tiempo.", "resultados": {"bueno": {"electricidad": -10, "estres_todos": 10, "integridad": 5}, "intermedio": {"electricidad": -14, "estres_todos": 13, "reparaciones_dias": 1}, "malo": {"electricidad": -18, "estres_todos": 15, "integridad": -5, "reparaciones_dias": 1}}}, {"id": "B", "texto": "Inspección visual desde el interior y vigilar con sensores", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 25.0, "m": 0.3}], "por_que": "Ahorra energía, pero un daño oculto en el escudo puede aparecer en la reentrada.", "resultados": {"bueno": {"electricidad": -3}, "intermedio": {"electricidad": -3, "integridad": -13}, "malo": {"electricidad": -3, "integridad": -25}}}, {"id": "C", "texto": "Reorientar la nave para exponer el lado reforzado", "trampa": false, "mods": [{"v": "combustible", "op": ">", "x": 50.0, "m": 0.3}], "por_que": "Protege de nuevos impactos, pero no repara el daño y gasta combustible.", "resultados": {"bueno": {"combustible": -8}, "intermedio": {"combustible": -11, "integridad": -5, "temperatura": 1}, "malo": {"combustible": -14, "integridad": -10, "temperatura": 2}}}]},
+	{"id": "N05_antena", "categoria": "nave", "tema": "Comunicaciones", "gravedad": 1, "dia_min": 3, "dia_max": 12, "tiempo_s": 20, "responsable": "leo", "texto": "La antena de alta ganancia se desalinea por vibración. Se corta el enlace de voz y telemetría con Houston.", "foco": "combustible", "opciones": [{"id": "A", "texto": "Navegación autónoma y antena omnidireccional con pulsos básicos", "trampa": false, "mods": [{"v": "datos", "op": ">", "x": 70.0, "m": -0.3}], "por_que": "La nave está diseñada para operar sin contacto continuo, pero la memoria de datos se llena sin enlace.", "resultados": {"bueno": {"estres_leo": 15, "datos": -10, "enlace_dias": 3}, "intermedio": {"estres_leo": 20, "datos": -15, "estres_todos": 4, "enlace_dias": 3}, "malo": {"estres_leo": 25, "datos": -20, "estres_todos": 8, "enlace_dias": 4}}}, {"id": "B", "texto": "Reorientar la nave para recuperar la señal", "trampa": false, "mods": [{"v": "combustible", "op": ">", "x": 50.0, "m": 0.3}], "por_que": "Recupera datos y enlace si sale bien, pero el control de actitud sin vectores confirmados puede desorientar los sensores.", "resultados": {"bueno": {"combustible": -6, "datos": 5, "enlace_dias": 0}, "intermedio": {"combustible": -9, "datos": 3, "electricidad": -4, "enlace_dias": 1}, "malo": {"combustible": -12, "electricidad": -8, "enlace_dias": 2}}}, {"id": "C", "texto": "Reiniciar el sistema de comunicaciones completo", "trampa": false, "mods": [{"v": "electricidad", "op": ">", "x": 50.0, "m": 0.2}], "por_que": "Soluciona fallos de software, pero si el problema es físico gastas energía en vano.", "resultados": {"bueno": {"electricidad": -5, "datos": 8, "enlace_dias": 0}, "intermedio": {"electricidad": -9, "datos": -4, "estres_leo": 8, "enlace_dias": 2}, "malo": {"electricidad": -12, "estres_leo": 15, "datos": -15, "enlace_dias": 3}}}], "al_iniciar": {"enlace_dias": 3}},
+	{"id": "N06_wrs", "categoria": "nave", "tema": "Gestión del agua", "gravedad": 2, "dia_min": 4, "dia_max": 13, "tiempo_s": 15, "responsable": "sofia", "texto": "Una obstrucción reduce a la mitad la recuperación de agua del sistema de reciclaje.", "foco": "agua", "opciones": [{"id": "A", "texto": "Suspender la higiene y limpiar el filtro", "trampa": false, "mods": [{"v": "estres_prom", "op": ">", "x": 60.0, "m": -0.3}], "por_que": "Protege el agua de bebida y repara la causa, pero el estrés sube por el aislamiento y la falta de higiene.", "resultados": {"bueno": {"agua": -4, "estres_todos": 12, "reparaciones_dias": 1}, "intermedio": {"agua": -7, "estres_todos": 15, "reparaciones_dias": 1, "salud_todos": -3}, "malo": {"agua": -10, "estres_todos": 18, "salud_todos": -5}}}, {"id": "B", "texto": "Desmontar y purgar el sistema con agua de reserva", "trampa": false, "mods": [{"v": "agua", "op": ">", "x": 50.0, "m": 0.4}, {"v": "agua", "op": "<", "x": 25.0, "m": -0.4}], "por_que": "Repara a fondo, pero cuesta agua cuando más la necesitas.", "resultados": {"bueno": {"agua": -10, "estres_todos": 5}, "intermedio": {"agua": -15, "estres_todos": 7}, "malo": {"agua": -20, "estres_todos": 8}}}, {"id": "C", "texto": "Operar al 50 % y compensar con raciones de agua más cortas", "trampa": false, "mods": [{"v": "dias_restantes", "op": "<", "x": 5.0, "m": 0.3}], "por_que": "No requiere reparar, pero la deshidratación leve se acumula y complica la reentrada.", "resultados": {"bueno": {"agua": -5, "salud_todos": -3, "estres_todos": 10}, "intermedio": {"agua": -7, "salud_todos": -8, "estres_todos": 13}, "malo": {"agua": -8, "salud_todos": -12, "estres_todos": 15}}}]},
+	{"id": "N07_co2", "categoria": "nave", "tema": "Control de CO₂", "gravedad": 3, "dia_min": 6, "dia_max": 14, "tiempo_s": 10, "responsable": "sofia", "texto": "Los filtros de hidróxido de litio se saturan. El aire se vuelve pesado y aparecen dolores de cabeza.", "foco": "oxigeno", "opciones": [{"id": "A", "texto": "Rotar a un cartucho de reserva", "trampa": false, "mods": [{"v": "filtros", "op": "<=", "x": 1.0, "m": -0.5}], "por_que": "Es la solución estándar, pero cada cartucho es irremplazable.", "resultados": {"bueno": {"filtros": -1, "estres_todos": 5}, "intermedio": {"filtros": -1, "estres_todos": 7, "salud_todos": -3}, "malo": {"filtros": -1, "estres_todos": 8, "salud_todos": -5}}}, {"id": "B", "texto": "Reposo metabólico: todos quietos para extender el filtro", "trampa": false, "mods": [{"v": "filtros", "op": "<=", "x": 1.0, "m": 0.4}], "por_que": "Menos actividad produce menos CO₂, pero paraliza el trabajo y el aire sigue empeorando.", "resultados": {"bueno": {"salud_todos": -2, "estres_todos": 10, "ciencia": -10}, "intermedio": {"salud_todos": -6, "estres_todos": 14, "ciencia": -13}, "malo": {"salud_todos": -10, "estres_todos": 18, "ciencia": -15}}}, {"id": "C", "texto": "Mezclar aire con oxígeno fresco para diluir el CO₂", "trampa": false, "mods": [{"v": "oxigeno", "op": ">", "x": 60.0, "m": 0.3}, {"v": "oxigeno", "op": "<", "x": 30.0, "m": -0.5}], "por_que": "Baja la concentración de CO₂ de inmediato, pero consume oxígeno vital.", "resultados": {"bueno": {"oxigeno": -10}, "intermedio": {"oxigeno": -15, "salud_todos": -3}, "malo": {"oxigeno": -20, "salud_todos": -5}}}]},
+	{"id": "N08_tormenta_solar", "categoria": "nave", "tema": "Radiación espacial", "gravedad": 3, "dia_min": 4, "dia_max": 13, "tiempo_s": 10, "responsable": "elena", "texto": "Houston avisa de una eyección de masa coronal. Quedan doce minutos antes de que llegue la radiación.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Refugio tras los tanques de agua y apagón parcial", "trampa": false, "mods": [{"v": "agua", "op": "<", "x": 25.0, "m": -0.4}], "por_que": "El agua es un buen escudo contra protones solares, pero pierdes datos y el encierro estresa.", "resultados": {"bueno": {"electricidad": -8, "estres_todos": 15, "datos": -10}, "intermedio": {"electricidad": -10, "estres_todos": 18, "datos": -13, "salud_todos": -4}, "malo": {"electricidad": -12, "estres_todos": 20, "salud_todos": -8, "datos": -15}}}, {"id": "B", "texto": "Refugio parcial: Leo sigue con un instrumento clave", "trampa": false, "mods": [{"v": "estres_leo", "op": ">", "x": 60.0, "m": -0.3}], "por_que": "Salvas parte de la ciencia, pero Leo recibe más dosis y el riesgo es real.", "resultados": {"bueno": {"salud_todos": -8, "estres_todos": 8, "ciencia": 8}, "intermedio": {"salud_todos": -17, "estres_todos": 12, "ciencia": 7}, "malo": {"salud_todos": -25, "estres_todos": 15, "ciencia": 5}}}, {"id": "C", "texto": "Orientar el módulo de servicio hacia el Sol y refugiarse detrás", "trampa": false, "mods": [{"v": "combustible", "op": "<", "x": 25.0, "m": -0.4}], "por_que": "Usa la masa de la nave como blindaje, pero gasta combustible y limita el movimiento.", "resultados": {"bueno": {"combustible": -8, "salud_todos": -3, "estres_todos": 10}, "intermedio": {"combustible": -11, "salud_todos": -8, "estres_todos": 13}, "malo": {"combustible": -14, "salud_todos": -12, "estres_todos": 15}}}]},
+	{"id": "N09_giroscopio", "categoria": "nave", "tema": "Control de actitud", "gravedad": 2, "dia_min": 3, "dia_max": 13, "tiempo_s": 15, "responsable": "elena", "texto": "Un giroscopio falla y la nave comienza a derivar lentamente. Los paneles solares pierden orientación.", "foco": "combustible", "opciones": [{"id": "A", "texto": "Compensar con propulsores de control de actitud", "trampa": false, "mods": [{"v": "combustible", "op": "<", "x": 25.0, "m": -0.4}], "por_que": "Recupera la orientación de inmediato, pero cada corrección consume combustible.", "resultados": {"bueno": {"combustible": -8, "electricidad": 2}, "intermedio": {"combustible": -12, "electricidad": -1}, "malo": {"combustible": -16, "electricidad": -3}}}, {"id": "B", "texto": "Recalibrar con las estrellas y pausar la ciencia", "trampa": false, "mods": [{"v": "ciencia", "op": "<", "x": 30.0, "m": -0.2}], "por_que": "Ahorra combustible, pero detiene los instrumentos varias horas.", "resultados": {"bueno": {"ciencia": -8, "electricidad": -3, "estres_leo": 10}, "intermedio": {"ciencia": -12, "electricidad": -6, "estres_leo": 14}, "malo": {"ciencia": -15, "electricidad": -8, "estres_leo": 18}}}, {"id": "C", "texto": "Dejar derivar unas horas y corregir después", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 40.0, "m": -0.4}], "por_que": "Parece que no cuesta nada, pero la deriva reduce la carga solar y calienta la cabina.", "resultados": {"bueno": {"electricidad": -5}, "intermedio": {"electricidad": -12, "temperatura": 2}, "malo": {"electricidad": -18, "temperatura": 3}}}]},
+	{"id": "N10_panel_atascado", "categoria": "nave", "tema": "Generación eléctrica", "gravedad": 2, "dia_min": 3, "dia_max": 13, "tiempo_s": 15, "responsable": "marcus", "texto": "Uno de los paneles solares queda atascado a medio desplegar y produce solo parte de la energía.", "foco": "combustible", "opciones": [{"id": "A", "texto": "Sacudirlo con maniobras suaves de la nave", "trampa": false, "mods": [{"v": "integridad", "op": "<", "x": 70.0, "m": -0.4}], "por_que": "Puede liberarlo, pero las vibraciones fatigan la estructura.", "resultados": {"bueno": {"combustible": -6, "electricidad": 8}, "intermedio": {"combustible": -8, "electricidad": 5, "integridad": -4}, "malo": {"combustible": -10, "integridad": -8, "electricidad": 2}}}, {"id": "B", "texto": "Operar con un solo panel y reducir cargas", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 40.0, "m": -0.4}], "por_que": "Es seguro y no gasta combustible, pero la electricidad pasa a ser el recurso más escaso.", "resultados": {"bueno": {"electricidad": -10, "ciencia": -10}, "intermedio": {"electricidad": -14, "ciencia": -14, "estres_todos": 4}, "malo": {"electricidad": -18, "ciencia": -18, "estres_todos": 8}}}, {"id": "C", "texto": "Reorientar la nave para aprovechar mejor el panel restante", "trampa": false, "mods": [{"v": "enlace_perdido", "op": "==", "x": 1.0, "m": -0.3}], "por_que": "Compensa parte de la pérdida, pero compromete la orientación de la antena.", "resultados": {"bueno": {"combustible": -7, "electricidad": 4}, "intermedio": {"combustible": -10, "electricidad": 2, "temperatura": 1}, "malo": {"combustible": -12, "temperatura": 2}}}]},
+	{"id": "N11_humo", "categoria": "nave", "tema": "Seguridad contra incendios", "gravedad": 3, "dia_min": 4, "dia_max": 14, "tiempo_s": 10, "responsable": "marcus", "texto": "Huele a plástico quemado. Sale humo de un panel detrás de la consola de Leo.", "foco": "oxigeno", "opciones": [{"id": "A", "texto": "Cortar la energía del panel y usar el extintor", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 20.0, "m": -0.3}], "por_que": "Apaga el foco en segundos, pero el extintor ensucia el aire y la pérdida de energía cuesta.", "resultados": {"bueno": {"electricidad": -5, "oxigeno": -3, "estres_todos": 10}, "intermedio": {"electricidad": -9, "oxigeno": -6, "estres_todos": 14, "salud_todos": -4}, "malo": {"electricidad": -12, "oxigeno": -8, "salud_todos": -8, "estres_todos": 18}}}, {"id": "B", "texto": "Aislar el módulo y despresurizar parcialmente para sofocar el fuego", "trampa": false, "mods": [{"v": "oxigeno", "op": "<", "x": 30.0, "m": -0.5}, {"v": "oxigeno", "op": ">", "x": 60.0, "m": 0.4}], "por_que": "Sin oxígeno el fuego se apaga, pero gastas aire y expones a la tripulación.", "resultados": {"bueno": {"oxigeno": -12, "estres_todos": 15}, "intermedio": {"oxigeno": -19, "estres_todos": 18, "salud_todos": -5}, "malo": {"oxigeno": -25, "salud_todos": -10, "estres_todos": 20}}}, {"id": "C", "texto": "Ventilar y filtrar el aire sin cortar el panel", "trampa": false, "mods": [{"v": "filtros", "op": ">=", "x": 3.0, "m": 0.5}], "por_que": "Arriesgas que el fuego reaparezca, y el humo satura los filtros.", "resultados": {"bueno": {"filtros": -1, "estres_todos": 8}, "intermedio": {"filtros": -1, "estres_todos": 12, "oxigeno": -5, "salud_todos": -8}, "malo": {"filtros": -1, "oxigeno": -10, "salud_todos": -15, "estres_todos": 15}}}]},
+	{"id": "N12_sensor_o2", "categoria": "nave", "tema": "Monitoreo ambiental", "gravedad": 1, "dia_min": 3, "dia_max": 13, "tiempo_s": 20, "responsable": "marcus", "texto": "Los dos sensores de oxígeno dan lecturas contradictorias: uno marca normal y el otro marca caída.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Confiar en el sensor principal", "trampa": false, "mods": [], "por_que": "Es rápido, pero si el principal está equivocado, no detectas una fuga real.", "resultados": {"bueno": {}, "intermedio": {"estres_todos": 6, "oxigeno": -8, "salud_todos": -6}, "malo": {"oxigeno": -15, "salud_todos": -12, "estres_todos": 12}}}, {"id": "B", "texto": "Verificar con el kit manual de la médica", "trampa": false, "mods": [{"v": "ciencia", "op": "<", "x": 20.0, "m": -0.2}], "por_que": "Cuesta tiempo, pero resuelve la duda con un tercer dato.", "resultados": {"bueno": {"ciencia": -3, "estres_todos": 3}, "intermedio": {"ciencia": -6, "estres_todos": 6}, "malo": {"ciencia": -8, "estres_todos": 8}}}, {"id": "C", "texto": "Recalibrar ambos sensores desde la consola", "trampa": false, "mods": [], "por_que": "Puede corregir un error de calibración, pero no distingue si la fuga es real.", "resultados": {"bueno": {"electricidad": -3, "datos": -3}, "intermedio": {"electricidad": -5, "datos": -5, "estres_todos": 4}, "malo": {"electricidad": -6, "datos": -6, "estres_todos": 8}}}]},
+	{"id": "N13_refrigerante", "categoria": "nave", "tema": "Control térmico", "gravedad": 3, "dia_min": 5, "dia_max": 13, "tiempo_s": 10, "responsable": "marcus", "texto": "Una fuga de refrigerante libera un olor dulzón y gotas flotantes. El líquido es tóxico.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Aislar el bucle y cambiar al circuito de respaldo", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 25.0, "m": -0.3}], "por_que": "Frena la contaminación, pero el circuito de respaldo tiene menos capacidad.", "resultados": {"bueno": {"electricidad": -8, "temperatura": 1, "estres_todos": 8}, "intermedio": {"electricidad": -11, "temperatura": 2, "estres_todos": 10}, "malo": {"electricidad": -14, "temperatura": 3, "estres_todos": 12}}}, {"id": "B", "texto": "Ponerse cascos y reparar la fuga sobre la marcha", "trampa": false, "mods": [], "por_que": "Resuelve de raíz si sale bien, pero cada segundo expuesto afecta la salud.", "resultados": {"bueno": {"estres_todos": 15}, "intermedio": {"estres_todos": 18, "salud_todos": -8}, "malo": {"salud_todos": -15, "estres_todos": 20}}}, {"id": "C", "texto": "Ventilar y filtrar el aire con carbón activado", "trampa": false, "mods": [{"v": "filtros", "op": ">=", "x": 3.0, "m": 0.3}], "por_que": "Limpia el aire, pero no detiene la fuga ni protege del contacto directo.", "resultados": {"bueno": {"filtros": -1, "estres_todos": 8}, "intermedio": {"filtros": -1, "estres_todos": 10, "salud_todos": -5}, "malo": {"filtros": -1, "salud_todos": -10, "estres_todos": 12}}}]},
+	{"id": "N14_computadora", "categoria": "nave", "tema": "Computadora de vuelo", "gravedad": 2, "dia_min": 3, "dia_max": 13, "tiempo_s": 15, "responsable": "leo", "texto": "La computadora de vuelo principal se reinicia sola y pierde sincronía con la de respaldo.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Reinicio completo y recarga de la configuración", "trampa": false, "mods": [{"v": "datos", "op": ">", "x": 70.0, "m": -0.3}], "por_que": "Es limpio, pero borra datos recientes y deja la nave sin control unas horas.", "resultados": {"bueno": {"datos": -15, "estres_leo": 8}, "intermedio": {"datos": -23, "estres_leo": 12, "ciencia": -5}, "malo": {"datos": -30, "estres_leo": 15, "ciencia": -10}}}, {"id": "B", "texto": "Cambiar a la computadora de respaldo", "trampa": false, "mods": [{"v": "dias_restantes", "op": "<", "x": 5.0, "m": -0.3}], "por_que": "Es inmediato, pero queda sin redundancia el resto del viaje.", "resultados": {"bueno": {"electricidad": -6}, "intermedio": {"electricidad": -10, "estres_leo": 6}, "malo": {"electricidad": -14, "estres_leo": 12}}}, {"id": "C", "texto": "Guiado manual con soporte de Houston", "trampa": false, "mods": [{"v": "enlace_perdido", "op": "==", "x": 1.0, "m": -0.6}], "por_que": "Ahorra energía, pero depende del enlace y sobrecarga a Elena.", "resultados": {"bueno": {"electricidad": -3, "estres_elena": 12}, "intermedio": {"electricidad": -6, "estres_elena": 16, "combustible": -4}, "malo": {"electricidad": -8, "estres_elena": 20, "combustible": -8}}}]},
+	{"id": "N15_ventana", "categoria": "nave", "tema": "Integridad estructural", "gravedad": 1, "dia_min": 4, "dia_max": 13, "tiempo_s": 20, "responsable": "elena", "texto": "Una partícula golpea una ventana de la cabina y deja una marca visible en el cristal exterior.", "foco": "combustible", "opciones": [{"id": "A", "texto": "Inspeccionar con luz y cámara, y cubrir la ventana", "trampa": false, "mods": [], "por_que": "Cuesta tiempo de ciencia y estrés, pero elimina la duda.", "resultados": {"bueno": {"ciencia": -3, "estres_todos": 5}, "intermedio": {"ciencia": -5, "estres_todos": 8}, "malo": {"ciencia": -6, "estres_todos": 10}}}, {"id": "B", "texto": "Dejarla y monitorear la presión con alarma", "trampa": false, "mods": [{"v": "integridad", "op": "<", "x": 60.0, "m": -0.4}], "por_que": "Ahorra tiempo, pero si la grieta crece la reacción llegará tarde.", "resultados": {"bueno": {"estres_todos": 3}, "intermedio": {"estres_todos": 9, "oxigeno": -5}, "malo": {"oxigeno": -10, "estres_todos": 15}}}, {"id": "C", "texto": "Reorientar la nave para proteger la ventana", "trampa": false, "mods": [{"v": "combustible", "op": "<", "x": 30.0, "m": -0.4}], "por_que": "Reduce exposición, pero gastas combustible por una marca superficial.", "resultados": {"bueno": {"combustible": -6}, "intermedio": {"combustible": -9, "electricidad": -2}, "malo": {"combustible": -12, "electricidad": -4}}}]},
+	{"id": "N16_propelente", "categoria": "nave", "tema": "Propulsión", "gravedad": 2, "dia_min": 3, "dia_max": 13, "tiempo_s": 15, "responsable": "elena", "texto": "Una válvula de la línea de propelente principal muestra una caída de presión inexplicable.", "foco": "combustible", "opciones": [{"id": "A", "texto": "Cerrar la línea y usar la línea redundante", "trampa": false, "mods": [], "por_que": "Protege el combustible, pero la línea secundaria tiene menos capacidad.", "resultados": {"bueno": {"combustible": -6}, "intermedio": {"combustible": -10, "estres_todos": 4}, "malo": {"combustible": -14, "estres_todos": 8}}}, {"id": "B", "texto": "Reparar la válvula con el kit de mantenimiento", "trampa": false, "mods": [{"v": "estres_marcus", "op": ">", "x": 60.0, "m": -0.4}, {"v": "estres_prom", "op": "<", "x": 40.0, "m": 0.3}], "por_que": "Restaura la redundancia completa, pero un error podría perder más propelente.", "resultados": {"bueno": {"electricidad": -4, "reparaciones_dias": 1, "estres_todos": 6}, "intermedio": {"electricidad": -6, "reparaciones_dias": 1, "estres_todos": 9, "combustible": -5}, "malo": {"electricidad": -8, "combustible": -10, "estres_todos": 12}}}, {"id": "C", "texto": "Usar el propelente restante en una maniobra útil de inmediato", "trampa": false, "mods": [{"v": "dia", "op": "<", "x": 8.0, "m": -0.3}, {"v": "dia", "op": ">", "x": 10.0, "m": 0.4}], "por_que": "Evita perderlo por la fuga, pero gastas un margen que podrías necesitar al regreso.", "resultados": {"bueno": {"combustible": -12}, "intermedio": {"combustible": -16, "integridad": -3}, "malo": {"combustible": -20, "integridad": -5}}}]},
+	{"id": "N17_humedad", "categoria": "nave", "tema": "Control térmico y humedad", "gravedad": 1, "dia_min": 3, "dia_max": 13, "tiempo_s": 20, "responsable": "marcus", "texto": "La humedad se acumula detrás de los paneles de la aviónica. Hay riesgo de cortocircuitos pequeños.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Aumentar la ventilación en la zona", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 30.0, "m": -0.4}], "por_que": "Seca la zona, pero consume energía de forma continua.", "resultados": {"bueno": {"electricidad": -5, "temperatura": -1}, "intermedio": {"electricidad": -8}, "malo": {"electricidad": -10, "temperatura": 1}}}, {"id": "B", "texto": "Colocar desecante en los paneles", "trampa": false, "mods": [], "por_que": "Es pasivo y barato, pero el desecante se satura y no se puede reponer.", "resultados": {"bueno": {"estres_todos": 3}, "intermedio": {"estres_todos": 5, "electricidad": -2}, "malo": {"estres_todos": 6, "electricidad": -4}}}, {"id": "C", "texto": "Bajar la temperatura de la cabina para reducir la condensación", "trampa": false, "mods": [], "por_que": "Atacas la causa, pero el frío estresa y reduce el rendimiento.", "resultados": {"bueno": {"temperatura": -3, "estres_todos": 8}, "intermedio": {"temperatura": -3, "estres_todos": 11, "salud_todos": -3}, "malo": {"temperatura": -2, "estres_todos": 14, "salud_todos": -5}}}]},
+	{"id": "N18_motor_vibracion", "categoria": "nave", "tema": "Propulsión", "gravedad": 3, "dia_min": 4, "dia_max": 11, "tiempo_s": 10, "responsable": "elena", "texto": "Antes de una maniobra, el motor principal muestra una vibración anormal en el diagnóstico.", "foco": "combustible", "opciones": [{"id": "A", "texto": "Posponer la maniobra y diagnosticar", "trampa": false, "mods": [{"v": "combustible", "op": "<", "x": 30.0, "m": -0.5}], "por_que": "Evita un fallo grave, pero retrasar la ventana orbital cuesta propelente.", "resultados": {"bueno": {"combustible": -8, "ciencia": -5, "estres_todos": 10}, "intermedio": {"combustible": -12, "ciencia": -3, "estres_todos": 14}, "malo": {"combustible": -15, "estres_todos": 18}}}, {"id": "B", "texto": "Ejecutar con empuje reducido y más tiempo", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 25.0, "m": -0.3}], "por_que": "Reduce el riesgo de daño, pero alarga el encendido y gasta energía.", "resultados": {"bueno": {"combustible": -4, "electricidad": -6}, "intermedio": {"combustible": -7, "electricidad": -9, "integridad": -4}, "malo": {"combustible": -10, "electricidad": -12, "integridad": -8}}}, {"id": "C", "texto": "Ejecutar según el plan original", "trampa": false, "mods": [], "por_que": "Si no es nada grave, ahorras tiempo. Si es real, el daño al motor puede ser catastrófico.", "resultados": {"bueno": {"combustible": -6}, "intermedio": {"combustible": -9, "integridad": -13, "estres_todos": 8}, "malo": {"combustible": -12, "integridad": -25, "estres_todos": 15}}}]},
+	{"id": "N19_ventiladores", "categoria": "nave", "tema": "Calidad del aire", "gravedad": 1, "dia_min": 3, "dia_max": 13, "tiempo_s": 20, "responsable": "sofia", "texto": "Un ventilador falla y se forman bolsas de CO₂ en zonas sin circulación, donde la gente duerme.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Reiniciar el ventilador y cambiar a los tripulantes de lugar", "trampa": false, "mods": [], "por_que": "Es barato, pero molesta al descanso y no repara la falla.", "resultados": {"bueno": {"electricidad": -3, "estres_todos": 5}, "intermedio": {"electricidad": -5, "estres_todos": 8, "salud_todos": -2}, "malo": {"electricidad": -6, "estres_todos": 10, "salud_todos": -3}}}, {"id": "B", "texto": "Colocar ventiladores portátiles en los puntos muertos", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 30.0, "m": -0.4}], "por_que": "Resuelve el problema directo, pero la energía extra pesa si ya escasea.", "resultados": {"bueno": {"electricidad": -6}, "intermedio": {"electricidad": -9, "estres_todos": 3}, "malo": {"electricidad": -12, "estres_todos": 5}}}, {"id": "C", "texto": "Dormir en turnos cortos en el centro de la cabina", "trampa": false, "mods": [{"v": "estres_prom", "op": ">", "x": 60.0, "m": -0.4}], "por_que": "No gasta nada, pero acumula fatiga y baja el rendimiento.", "resultados": {"bueno": {"estres_todos": 10, "salud_todos": -2}, "intermedio": {"estres_todos": 14, "salud_todos": -5}, "malo": {"estres_todos": 18, "salud_todos": -8}}}]},
+	{"id": "N20_agua_contaminada", "categoria": "nave", "tema": "Calidad del agua", "gravedad": 2, "dia_min": 5, "dia_max": 13, "tiempo_s": 15, "responsable": "sofia", "texto": "Un análisis detecta una película bacteriana en un tanque de agua potable.", "foco": "agua", "opciones": [{"id": "A", "texto": "Tratar el tanque con biocida", "trampa": false, "mods": [], "por_que": "Conserva el agua, pero el biocida debe dosificarse con exactitud.", "resultados": {"bueno": {"agua": -3, "estres_todos": 5}, "intermedio": {"agua": -4, "estres_todos": 8, "salud_todos": -4}, "malo": {"agua": -5, "salud_todos": -8, "estres_todos": 10}}}, {"id": "B", "texto": "Descartar el tanque contaminado", "trampa": false, "mods": [{"v": "agua", "op": ">", "x": 50.0, "m": 0.4}, {"v": "agua", "op": "<", "x": 30.0, "m": -0.6}], "por_que": "Es lo más seguro para la salud, pero pierdes una parte importante de la reserva.", "resultados": {"bueno": {"agua": -15, "estres_todos": 8}, "intermedio": {"agua": -17, "estres_todos": 10}, "malo": {"agua": -18, "estres_todos": 12}}}, {"id": "C", "texto": "Filtrar y hervir antes de beber", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 30.0, "m": -0.4}], "por_que": "Reduce el riesgo, pero consume energía y no elimina toxinas.", "resultados": {"bueno": {"electricidad": -6, "agua": -4}, "intermedio": {"electricidad": -9, "agua": -5, "salud_todos": -5}, "malo": {"electricidad": -12, "agua": -6, "salud_todos": -10}}}]},
+	{"id": "N21_bateria", "categoria": "nave", "tema": "Almacenamiento de energía", "gravedad": 2, "dia_min": 3, "dia_max": 13, "tiempo_s": 15, "responsable": "marcus", "texto": "Una celda de las baterías muestra temperatura anormal y pierde capacidad.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Aislar la celda y aceptar menos capacidad", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 30.0, "m": -0.3}], "por_que": "Evita el riesgo térmico, pero pierdes parte de la reserva eléctrica.", "resultados": {"bueno": {"electricidad": -8, "estres_todos": 5}, "intermedio": {"electricidad": -10, "estres_todos": 7}, "malo": {"electricidad": -12, "estres_todos": 8}}}, {"id": "B", "texto": "Equilibrar la carga entre celdas", "trampa": false, "mods": [], "por_que": "Salva la celda si sale bien, pero cuesta tiempo de ciencia y puede sobrecalentarla.", "resultados": {"bueno": {"electricidad": -3, "ciencia": -6, "reparaciones_dias": 1}, "intermedio": {"electricidad": -7, "ciencia": -8, "reparaciones_dias": 1, "temperatura": 1}, "malo": {"electricidad": -10, "ciencia": -10, "temperatura": 2}}}, {"id": "C", "texto": "Seguir usándola a pleno hasta que falle", "trampa": false, "mods": [], "por_que": "Parece que no cuesta nada hasta que falla: entonces cuesta mucho.", "resultados": {"bueno": {}, "intermedio": {"electricidad": -15, "temperatura": 2, "oxigeno": -4}, "malo": {"electricidad": -30, "temperatura": 4, "oxigeno": -8}}}]},
+	{"id": "N22_inodoro", "categoria": "nave", "tema": "Sistemas de higiene", "gravedad": 1, "dia_min": 4, "dia_max": 13, "tiempo_s": 25, "responsable": "sofia", "texto": "El sistema de eliminación de residuos falla. Nadie quiere hablar del olor, pero el aire empieza a notarlo.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Repararlo entre dos, a costa de otras tareas", "trampa": false, "mods": [], "por_que": "Restaura el sistema, pero la reparación quita tiempo a otras prioridades.", "resultados": {"bueno": {"ciencia": -5, "estres_todos": 8, "reparaciones_dias": 1}, "intermedio": {"ciencia": -7, "estres_todos": 12, "reparaciones_dias": 1}, "malo": {"ciencia": -8, "estres_todos": 15}}}, {"id": "B", "texto": "Usar las bolsas de contingencia", "trampa": false, "mods": [{"v": "estres_prom", "op": ">", "x": 60.0, "m": -0.4}, {"v": "estres_prom", "op": "<", "x": 40.0, "m": 0.3}], "por_que": "Es inmediato, pero el estrés sube y el aire se carga.", "resultados": {"bueno": {"estres_todos": 15}, "intermedio": {"estres_todos": 20, "filtros": -1, "salud_todos": -2}, "malo": {"estres_todos": 25, "filtros": -1, "salud_todos": -4}}}, {"id": "C", "texto": "Cannibalizar una pieza de otro sistema", "trampa": false, "mods": [{"v": "electricidad", "op": ">", "x": 60.0, "m": 0.3}], "por_que": "Resuelve el problema, pero quitas redundancia a algo que podría fallar después.", "resultados": {"bueno": {"electricidad": -3, "estres_todos": 5}, "intermedio": {"electricidad": -7, "estres_todos": 9, "integridad": -3}, "malo": {"electricidad": -10, "integridad": -5, "estres_todos": 12}}}]},
+	{"id": "N23_falsa_alarma", "categoria": "nave", "tema": "Respuesta a emergencias", "gravedad": 2, "dia_min": 2, "dia_max": 13, "tiempo_s": 10, "responsable": "elena", "texto": "Suena la alarma de despresurización, pero los sensores no muestran caída de presión. ¿Falsa alarma?", "foco": "oxigeno", "opciones": [{"id": "A", "texto": "Reaccionar como emergencia real: cascos y aislar", "trampa": false, "mods": [{"v": "estres_prom", "op": ">", "x": 60.0, "m": -0.4}, {"v": "estres_prom", "op": "<", "x": 40.0, "m": 0.3}], "por_que": "Nunca te equivocas por prudente, pero estresas a todos por nada.", "resultados": {"bueno": {"oxigeno": -3, "estres_todos": 12}, "intermedio": {"oxigeno": -5, "estres_todos": 16, "salud_todos": -2}, "malo": {"oxigeno": -6, "estres_todos": 20, "salud_todos": -3}}}, {"id": "B", "texto": "Verificar manualmente con el kit mientras todos se preparan", "trampa": false, "mods": [], "por_que": "Equilibra velocidad y precisión, pero tarda unos minutos clave.", "resultados": {"bueno": {"estres_todos": 8}, "intermedio": {"oxigeno": -3, "estres_todos": 10, "salud_todos": -2}, "malo": {"oxigeno": -5, "estres_todos": 12, "salud_todos": -3}}}, {"id": "C", "texto": "Silenciar la alarma y vigilar los datos", "trampa": false, "mods": [{"v": "oxigeno", "op": ">", "x": 70.0, "m": 0.5}], "por_que": "Si era falsa, no pasó nada. Si no, perdiste minutos críticos.", "resultados": {"bueno": {}, "intermedio": {"estres_todos": 10, "oxigeno": -13, "salud_todos": -8}, "malo": {"oxigeno": -25, "salud_todos": -15, "estres_todos": 20}}}]},
+	{"id": "N24_star_tracker", "categoria": "nave", "tema": "Navegación", "gravedad": 1, "dia_min": 3, "dia_max": 13, "tiempo_s": 20, "responsable": "leo", "texto": "El rastreador estelar queda cegado por el reflejo del Sol y la navegación pierde precisión.", "foco": "combustible", "opciones": [{"id": "A", "texto": "Reorientar para recuperar la visión estelar", "trampa": false, "mods": [{"v": "combustible", "op": "<", "x": 30.0, "m": -0.4}], "por_que": "Mantiene la navegación precisa, pero gasta combustible.", "resultados": {"bueno": {"combustible": -5}, "intermedio": {"combustible": -8, "electricidad": -2}, "malo": {"combustible": -10, "electricidad": -4}}}, {"id": "B", "texto": "Navegar solo con la unidad inercial unas horas", "trampa": false, "mods": [{"v": "dias_restantes", "op": "<", "x": 5.0, "m": -0.4}], "por_que": "Ahorra combustible, pero la deriva se acumula y obliga a una corrección mayor.", "resultados": {"bueno": {"electricidad": -2, "estres_elena": 5}, "intermedio": {"electricidad": -3, "estres_elena": 9, "combustible": -4}, "malo": {"electricidad": -4, "combustible": -8, "estres_elena": 12}}}, {"id": "C", "texto": "Pedir un ajuste a Houston", "trampa": false, "mods": [{"v": "enlace_perdido", "op": "==", "x": 1.0, "m": -0.7}], "por_que": "Es rápido y tranquilizador, pero depende del enlace y consume ancho de banda.", "resultados": {"bueno": {"datos": -3, "estres_todos": -3}, "intermedio": {"datos": -6, "estres_todos": 1}, "malo": {"datos": -8, "estres_todos": 5}}}]},
+	{"id": "N25_rcs", "categoria": "nave", "tema": "Propulsión", "gravedad": 2, "dia_min": 3, "dia_max": 13, "tiempo_s": 15, "responsable": "elena", "texto": "Una fuga lenta en un grupo de propulsores de actitud pierde propelente a un ritmo constante.", "foco": "combustible", "opciones": [{"id": "A", "texto": "Cerrar el grupo afectado", "trampa": false, "mods": [], "por_que": "Detiene la pérdida, pero tendrás menos capacidad de maniobra.", "resultados": {"bueno": {"combustible": -3, "estres_todos": 5}, "intermedio": {"combustible": -5, "estres_todos": 7}, "malo": {"combustible": -6, "estres_todos": 8}}}, {"id": "B", "texto": "Parchear la línea con sellador", "trampa": false, "mods": [{"v": "estres_marcus", "op": "<", "x": 40.0, "m": 0.3}], "por_que": "Conserva los propulsores, pero el parche puede no resistir las maniobras.", "resultados": {"bueno": {"combustible": -4, "reparaciones_dias": 1}, "intermedio": {"combustible": -8, "reparaciones_dias": 1, "estres_todos": 6}, "malo": {"combustible": -12, "estres_todos": 12}}}, {"id": "C", "texto": "Gastar el propelente restante en una corrección útil", "trampa": false, "mods": [{"v": "combustible", "op": "<", "x": 40.0, "m": -0.4}, {"v": "dia", "op": ">", "x": 10.0, "m": 0.4}], "por_que": "Aprovecha lo que se perdería, pero reduce la reserva para el regreso.", "resultados": {"bueno": {"combustible": -8}, "intermedio": {"combustible": -11}, "malo": {"combustible": -14}}}]},
+	{"id": "N26_dosis", "categoria": "nave", "tema": "Radiación espacial", "gravedad": 1, "dia_min": 5, "dia_max": 13, "tiempo_s": 20, "responsable": "sofia", "texto": "El dosímetro de Leo acumula una dosis alta tras pasar muchas horas en la zona menos blindada.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Reducir su tiempo en esa zona y reorganizar tareas", "trampa": false, "mods": [], "por_que": "Protege su salud a largo plazo, pero retrasa su trabajo y lo frustra.", "resultados": {"bueno": {"ciencia": -6, "estres_leo": 10, "confianza_leo": -5}, "intermedio": {"ciencia": -9, "estres_leo": 14, "confianza_leo": -8}, "malo": {"ciencia": -12, "estres_leo": 18, "confianza_leo": -10}}}, {"id": "B", "texto": "Moverlo temporalmente al centro blindado de la cabina", "trampa": false, "mods": [], "por_que": "Es sencillo, pero ocupa un espacio que otros necesitan.", "resultados": {"bueno": {"electricidad": -3, "ciencia": -4}, "intermedio": {"electricidad": -5, "ciencia": -6, "estres_todos": 3}, "malo": {"electricidad": -6, "ciencia": -8, "estres_todos": 5}}}, {"id": "C", "texto": "Aceptar el riesgo para terminar la recolección", "trampa": false, "mods": [{"v": "ciencia", "op": "<", "x": 30.0, "m": 0.3}], "por_que": "Más ciencia ahora, pero su salud puede degradarse antes de la reentrada.", "resultados": {"bueno": {"ciencia": 8, "salud_leo": -8}, "intermedio": {"ciencia": 7, "salud_leo": -17, "estres_sofia": 6}, "malo": {"ciencia": 5, "salud_leo": -25, "estres_sofia": 12}}}]},
+	{"id": "N27_escotilla", "categoria": "nave", "tema": "Integridad estructural", "gravedad": 2, "dia_min": 4, "dia_max": 13, "tiempo_s": 15, "responsable": "marcus", "texto": "La escotilla del módulo de carga no sella por completo y silba levemente al presurizar.", "foco": "oxigeno", "opciones": [{"id": "A", "texto": "Reparar el sello y presurizar de nuevo", "trampa": false, "mods": [], "por_que": "Restaura el sello, pero consume tiempo y algo de oxígeno.", "resultados": {"bueno": {"oxigeno": -4, "reparaciones_dias": 1, "estres_todos": 6}, "intermedio": {"oxigeno": -7, "reparaciones_dias": 1, "estres_todos": 8}, "malo": {"oxigeno": -10, "estres_todos": 10}}}, {"id": "B", "texto": "Aplicar sellador y presurizar parcialmente", "trampa": false, "mods": [{"v": "integridad", "op": "<", "x": 70.0, "m": -0.3}], "por_que": "Es rápido, pero el sello improvisado puede ceder.", "resultados": {"bueno": {"oxigeno": -2, "estres_todos": 5}, "intermedio": {"oxigeno": -7, "estres_todos": 9}, "malo": {"oxigeno": -12, "estres_todos": 12}}}, {"id": "C", "texto": "Cerrar la escotilla y no usar el módulo de carga", "trampa": false, "mods": [{"v": "ciencia", "op": ">", "x": 60.0, "m": 0.3}], "por_que": "Elimina el riesgo, pero pierdes acceso a parte del equipo científico.", "resultados": {"bueno": {"ciencia": -8, "estres_todos": 5}, "intermedio": {"ciencia": -10, "estres_todos": 8, "modulo_dias": 2}, "malo": {"ciencia": -12, "estres_todos": 10, "modulo_dias": 4}}}]},
+	{"id": "N28_ruido_instrumento", "categoria": "nave", "tema": "Instrumentación científica", "gravedad": 1, "dia_min": 3, "dia_max": 13, "tiempo_s": 20, "responsable": "leo", "texto": "El espectrómetro empieza a producir datos con ruido eléctrico que podrían invalidar las mediciones.", "foco": "", "opciones": [{"id": "A", "texto": "Recalibrar con la secuencia completa", "trampa": false, "mods": [], "por_que": "Recupera datos limpios, pero gasta tiempo y memoria.", "resultados": {"bueno": {"datos": -5, "ciencia": -4, "estres_leo": 5}, "intermedio": {"datos": -9, "ciencia": -6, "estres_leo": 9}, "malo": {"datos": -12, "ciencia": -8, "estres_leo": 12}}}, {"id": "B", "texto": "Apagar el instrumento y reanudar más tarde", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 30.0, "m": 0.4}], "por_que": "Ahorra energía, pero retrasa la ciencia y frustra a Leo.", "resultados": {"bueno": {"electricidad": 3, "ciencia": -10}, "intermedio": {"electricidad": 3, "ciencia": -13, "estres_leo": 8}, "malo": {"electricidad": 3, "ciencia": -15, "estres_leo": 15}}}, {"id": "C", "texto": "Filtrar el ruido por software y seguir midiendo", "trampa": false, "mods": [{"v": "ciencia", "op": "<", "x": 30.0, "m": 0.3}], "por_que": "Sigues con la misión, pero un filtro mal ajustado puede ocultar datos reales.", "resultados": {"bueno": {"datos": 5, "ciencia": 3}, "intermedio": {"datos": 8, "ciencia": -1}, "malo": {"datos": 10, "ciencia": -5}}}]},
+	{"id": "N29_carga_suelta", "categoria": "nave", "tema": "Dinámica de vuelo", "gravedad": 1, "dia_min": 4, "dia_max": 13, "tiempo_s": 20, "responsable": "leo", "texto": "Los contenedores de muestras se sueltan y el centro de masa cambia, afectando el control de actitud.", "foco": "combustible", "opciones": [{"id": "A", "texto": "Reestibar la carga con calma", "trampa": false, "mods": [], "por_que": "Ordena el problema de raíz, pero consume tiempo de trabajo.", "resultados": {"bueno": {"ciencia": -4, "estres_todos": 6, "reparaciones_dias": 1}, "intermedio": {"ciencia": -6, "estres_todos": 8, "reparaciones_dias": 1}, "malo": {"ciencia": -8, "estres_todos": 10}}}, {"id": "B", "texto": "Compensar con los propulsores y dejarlo así", "trampa": false, "mods": [{"v": "combustible", "op": "<", "x": 40.0, "m": -0.4}], "por_que": "Es rápido, pero gasta combustible durante el resto del viaje.", "resultados": {"bueno": {"combustible": -5}, "intermedio": {"combustible": -9, "integridad": -3}, "malo": {"combustible": -12, "integridad": -5}}}, {"id": "C", "texto": "Soltar parte de la carga menos valiosa", "trampa": false, "mods": [{"v": "combustible", "op": "<", "x": 25.0, "m": 0.4}], "por_que": "Rebaja la masa, pero pierdes ciencia y enfadas a Leo.", "resultados": {"bueno": {"ciencia": -12, "combustible": 2}, "intermedio": {"ciencia": -16, "combustible": 1, "estres_leo": 10, "confianza_leo": -5}, "malo": {"ciencia": -20, "estres_leo": 20, "confianza_leo": -10}}}]},
+	{"id": "N30_hielo_linea", "categoria": "nave", "tema": "Control térmico", "gravedad": 2, "dia_min": 4, "dia_max": 13, "tiempo_s": 15, "responsable": "marcus", "texto": "Una línea de agua se congela cerca del radiador. El flujo cae y el sistema se bloquea.", "foco": "agua", "opciones": [{"id": "A", "texto": "Calentar la línea con resistencias", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 30.0, "m": -0.4}], "por_que": "Funciona si hay energía, pero gasta electricidad en pleno frío.", "resultados": {"bueno": {"electricidad": -8, "agua": -2}, "intermedio": {"electricidad": -11, "agua": -1, "temperatura": 1}, "malo": {"electricidad": -14, "temperatura": 2}}}, {"id": "B", "texto": "Drenar la línea y almacenar el agua en bolsas", "trampa": false, "mods": [], "por_que": "Evita la rotura de tubos, pero pierdes agua y complicas la logística.", "resultados": {"bueno": {"agua": -6, "estres_todos": 8, "reparaciones_dias": 1}, "intermedio": {"agua": -9, "estres_todos": 10, "reparaciones_dias": 1}, "malo": {"agua": -12, "estres_todos": 12}}}, {"id": "C", "texto": "Esperar a que se descongele con el calor de la cabina", "trampa": false, "mods": [], "por_que": "No gasta nada, pero una línea congelada puede romperse al expandirse.", "resultados": {"bueno": {"temperatura": -1, "estres_todos": 3}, "intermedio": {"temperatura": -1, "estres_todos": 6, "agua": -3, "integridad": -5}, "malo": {"agua": -5, "integridad": -10, "estres_todos": 8}}}]},
+	{"id": "R01_condensado", "categoria": "recursos", "tema": "Recuperación de agua", "gravedad": 0, "dia_min": 3, "dia_max": 13, "tiempo_s": 25, "responsable": "marcus", "texto": "La cabina acumula humedad en las paredes frías. Es agua que podrías recuperar, pero hay que decidir cómo.", "foco": "agua", "opciones": [{"id": "A", "texto": "Recuperar el condensado con el deshumidificador y reciclarlo", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 30.0, "m": -0.4}], "por_que": "El agua de la humedad ya está en la nave, pero el equipo consume energía y el agua recuperada debe tratarse.", "resultados": {"bueno": {"agua": 8, "electricidad": -4}, "intermedio": {"agua": 5, "electricidad": -6, "estres_todos": 3}, "malo": {"agua": 2, "electricidad": -8, "estres_todos": 5}}}, {"id": "B", "texto": "Recoger a mano el agua de las paredes con paños", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 30.0, "m": 0.4}], "por_que": "No gasta energía, pero cuesta tiempo y recoge menos.", "resultados": {"bueno": {"agua": 4, "ciencia": -4, "estres_todos": 5}, "intermedio": {"agua": 3, "ciencia": -6, "estres_todos": 8}, "malo": {"agua": 2, "ciencia": -8, "estres_todos": 10}}}, {"id": "C", "texto": "Beber directamente del circuito de refrigeración", "trampa": true, "mods": [], "por_que": "El refrigerante no es agua potable. Parece agua, pero contiene aditivos tóxicos.", "resultados": {"bueno": {"agua": 3, "salud_todos": -10}, "intermedio": {"agua": 2, "salud_todos": -18, "temperatura": 2}, "malo": {"salud_todos": -25, "temperatura": 3}}}]},
+	{"id": "R02_wrs_mantenimiento", "categoria": "recursos", "tema": "Reciclaje de agua", "gravedad": 0, "dia_min": 3, "dia_max": 13, "tiempo_s": 25, "responsable": "sofia", "texto": "El reciclador de agua funciona al 70 %. Con mantenimiento podría recuperar más, pero detenerlo cuesta.", "foco": "agua", "opciones": [{"id": "A", "texto": "Parar el sistema 4 horas para limpiar y recalibrar", "trampa": false, "mods": [{"v": "agua", "op": "<", "x": 25.0, "m": -0.4}], "por_que": "Sube la eficiencia, pero detenerlo hace que no se recicle agua durante ese tiempo.", "resultados": {"bueno": {"agua": 7, "estres_todos": 6, "reparaciones_dias": 1}, "intermedio": {"agua": 3, "estres_todos": 8, "reparaciones_dias": 1}, "malo": {"agua": -2, "estres_todos": 10}}}, {"id": "B", "texto": "Hacerlo por etapas, sin parar nunca el sistema", "trampa": false, "mods": [], "por_que": "No hay parón, pero requiere más tiempo y atención.", "resultados": {"bueno": {"agua": 4, "ciencia": -4}, "intermedio": {"agua": 3, "ciencia": -6, "estres_todos": 4}, "malo": {"agua": 2, "ciencia": -8, "estres_todos": 8}}}, {"id": "C", "texto": "Dejarlo como está y compensar con raciones de agua", "trampa": false, "mods": [{"v": "dias_restantes", "op": "<", "x": 4.0, "m": 0.3}], "por_que": "No se arriesga nada del sistema, pero la tripulación paga el costo.", "resultados": {"bueno": {"agua": 2, "estres_todos": 10, "salud_todos": -3}, "intermedio": {"agua": 1, "estres_todos": 13, "salud_todos": -7}, "malo": {"estres_todos": 15, "salud_todos": -10}}}]},
+	{"id": "R03_paneles", "categoria": "recursos", "tema": "Generación eléctrica", "gravedad": 0, "dia_min": 2, "dia_max": 13, "tiempo_s": 25, "responsable": "marcus", "texto": "Si reorientas los paneles solares, la nave producirá más energía, pero hay que girar la nave.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Reorientar la nave para maximizar la carga solar", "trampa": false, "mods": [{"v": "combustible", "op": "<", "x": 30.0, "m": -0.4}], "por_que": "Sube la electricidad, pero gastas combustible y la antena puede perder el enlace.", "resultados": {"bueno": {"electricidad": 10, "combustible": -5}, "intermedio": {"electricidad": 7, "combustible": -7, "datos": -4}, "malo": {"electricidad": 4, "combustible": -9, "datos": -8}}}, {"id": "B", "texto": "Mantener la orientación y reducir cargas", "trampa": false, "mods": [{"v": "ciencia", "op": ">", "x": 60.0, "m": 0.3}, {"v": "ciencia", "op": "<", "x": 30.0, "m": -0.2}], "por_que": "No gasta combustible, pero sacrificas ciencia.", "resultados": {"bueno": {"electricidad": 4, "ciencia": -8}, "intermedio": {"electricidad": 3, "ciencia": -10, "estres_todos": 4}, "malo": {"electricidad": 2, "ciencia": -12, "estres_todos": 8}}}, {"id": "C", "texto": "Rotación lenta para repartir sol y calor", "trampa": false, "mods": [], "por_que": "Equilibra temperatura y energía, pero no maximiza ninguna.", "resultados": {"bueno": {"electricidad": 6, "temperatura": -2, "combustible": -3}, "intermedio": {"electricidad": 5, "temperatura": -1, "combustible": -5}, "malo": {"electricidad": 3, "combustible": -6}}}]},
+	{"id": "R04_raciones", "categoria": "recursos", "tema": "Nutrición", "gravedad": 0, "dia_min": 2, "dia_max": 13, "tiempo_s": 25, "responsable": "sofia", "texto": "Las raciones liofilizadas se acaban más rápido de lo previsto. Puedes reajustar la dieta.", "foco": "comida", "opciones": [{"id": "A", "texto": "Reducir porciones un 20 % y reforzar proteínas", "trampa": false, "mods": [{"v": "estres_prom", "op": ">", "x": 60.0, "m": -0.4}], "por_que": "Estira la comida, pero el hambre y el estrés suben.", "resultados": {"bueno": {"comida": 6, "hambre_todos": 8, "estres_todos": 6}, "intermedio": {"comida": 5, "hambre_todos": 12, "estres_todos": 9, "salud_todos": -2}, "malo": {"comida": 3, "hambre_todos": 15, "estres_todos": 12, "salud_todos": -3}}}, {"id": "B", "texto": "Mantener porciones y suspender el postre y las bebidas calóricas", "trampa": false, "mods": [], "por_que": "El ahorro es menor, pero afecta menos al cuerpo.", "resultados": {"bueno": {"comida": 4, "estres_todos": 8}, "intermedio": {"comida": 3, "estres_todos": 11}, "malo": {"comida": 2, "estres_todos": 14}}}, {"id": "C", "texto": "Comer todo lo que quieran hasta que alcance", "trampa": false, "mods": [{"v": "comida", "op": ">", "x": 70.0, "m": 0.4}], "por_que": "Sube la moral hoy, pero puede dejarte sin comida al final.", "resultados": {"bueno": {"estres_todos": -5}, "intermedio": {"comida": -6, "estres_todos": -3, "hambre_todos": 5}, "malo": {"comida": -12, "hambre_todos": 10}}}]},
+	{"id": "R05_cargas_termicas", "categoria": "recursos", "tema": "Ahorro eléctrico", "gravedad": 0, "dia_min": 3, "dia_max": 13, "tiempo_s": 25, "responsable": "marcus", "texto": "Apagar equipos no esenciales reduce el consumo y el calor, pero hay que elegir qué apagar.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Apagar los instrumentos científicos secundarios", "trampa": false, "mods": [{"v": "ciencia", "op": ">", "x": 60.0, "m": 0.3}], "por_que": "Es el recorte que menos daña la seguridad, pero Leo lo vive como una derrota.", "resultados": {"bueno": {"electricidad": 8, "temperatura": -1, "ciencia": -8}, "intermedio": {"electricidad": 6, "temperatura": -1, "ciencia": -11, "estres_leo": 6}, "malo": {"electricidad": 4, "ciencia": -14, "estres_leo": 12}}}, {"id": "B", "texto": "Apagar pantallas y luces de la cabina", "trampa": false, "mods": [{"v": "estres_prom", "op": "<", "x": 40.0, "m": 0.2}], "por_que": "No toca la ciencia, pero el ambiente oscuro cansa a la tripulación.", "resultados": {"bueno": {"electricidad": 5, "estres_todos": 8}, "intermedio": {"electricidad": 4, "estres_todos": 11}, "malo": {"electricidad": 3, "estres_todos": 14}}}, {"id": "C", "texto": "Apagar la aviónica redundante", "trampa": false, "mods": [{"v": "dias_restantes", "op": ">", "x": 8.0, "m": 0.3}], "por_que": "El ahorro es grande, pero quedas sin respaldo ante un fallo.", "resultados": {"bueno": {"electricidad": 10}, "intermedio": {"electricidad": 7, "integridad": -3, "estres_todos": 5}, "malo": {"electricidad": 4, "integridad": -5, "estres_todos": 10}}}]},
+	{"id": "R06_co2_cartuchos", "categoria": "recursos", "tema": "Control de CO₂", "gravedad": 0, "dia_min": 5, "dia_max": 13, "tiempo_s": 25, "responsable": "sofia", "texto": "Los cartuchos de CO₂ de reserva son limitados. Puedes alargar su vida de varias formas.", "foco": "", "opciones": [{"id": "A", "texto": "Reducir la actividad física y programar el descanso", "trampa": false, "mods": [], "por_que": "Menos movimiento significa menos CO₂, pero menos trabajo.", "resultados": {"bueno": {"filtros": 1, "ciencia": -8, "estres_todos": 8}, "intermedio": {"filtros": 1, "ciencia": -10, "estres_todos": 10}, "malo": {"ciencia": -12, "estres_todos": 12}}}, {"id": "B", "texto": "Usar los cartuchos en turnos más cortos", "trampa": false, "mods": [{"v": "filtros", "op": "<=", "x": 1.0, "m": 0.3}], "por_que": "Estira los cartuchos, pero el aire queda con más CO₂.", "resultados": {"bueno": {"salud_todos": -2, "estres_todos": 8}, "intermedio": {"filtros": -1, "salud_todos": -5, "estres_todos": 10}, "malo": {"filtros": -1, "salud_todos": -8, "estres_todos": 12}}}, {"id": "C", "texto": "Intentar regenerar un cartucho calentándolo", "trampa": true, "mods": [], "por_que": "Los cartuchos de hidróxido de litio no se regeneran así. Es una pérdida de energía.", "resultados": {"bueno": {"electricidad": -6}, "intermedio": {"electricidad": -8, "salud_todos": -6}, "malo": {"electricidad": -10, "salud_todos": -12}}}]},
+	{"id": "R07_trayectoria", "categoria": "recursos", "tema": "Eficiencia de propulsión", "gravedad": 0, "dia_min": 4, "dia_max": 12, "tiempo_s": 25, "responsable": "elena", "texto": "Una corrección de trayectoria podría gastar menos combustible si cambias el método.", "foco": "combustible", "opciones": [{"id": "A", "texto": "Corrección con empuje bajo y más tiempo de maniobra", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 30.0, "m": -0.4}], "por_que": "Optimiza el combustible, pero tarda más y gasta energía.", "resultados": {"bueno": {"combustible": 6, "electricidad": -5}, "intermedio": {"combustible": 4, "electricidad": -8}, "malo": {"combustible": 2, "electricidad": -10}}}, {"id": "B", "texto": "Hacer la corrección en el punto más eficiente de la órbita", "trampa": false, "mods": [{"v": "dias_restantes", "op": "<", "x": 4.0, "m": -0.3}], "por_que": "Ahorra más combustible, pero obliga a esperar.", "resultados": {"bueno": {"combustible": 8, "ciencia": -5, "estres_todos": 6}, "intermedio": {"combustible": 6, "ciencia": -8, "estres_todos": 8}, "malo": {"combustible": 3, "ciencia": -10, "estres_todos": 10}}}, {"id": "C", "texto": "Hacer la corrección ahora y simple", "trampa": false, "mods": [{"v": "combustible", "op": ">", "x": 60.0, "m": 0.3}], "por_que": "Es rápido, pero no ahorras nada.", "resultados": {"bueno": {}, "intermedio": {"combustible": -4, "estres_todos": 3}, "malo": {"combustible": -8, "estres_todos": 5}}}]},
+	{"id": "R08_celdas", "categoria": "recursos", "tema": "Gestión de energía y agua", "gravedad": 0, "dia_min": 2, "dia_max": 13, "tiempo_s": 25, "responsable": "marcus", "texto": "Las celdas de combustible producen agua como subproducto. Puedes aprovecharla si cambias el régimen.", "foco": "agua", "opciones": [{"id": "A", "texto": "Subir el régimen de las celdas y recolectar el agua", "trampa": false, "mods": [{"v": "combustible", "op": "<", "x": 30.0, "m": -0.5}], "por_que": "Más agua y energía, pero consume combustible y calienta la nave.", "resultados": {"bueno": {"agua": 8, "electricidad": 4, "combustible": -6}, "intermedio": {"agua": 6, "electricidad": 2, "combustible": -8, "temperatura": 1}, "malo": {"agua": 3, "combustible": -10, "temperatura": 2}}}, {"id": "B", "texto": "Mantener el régimen y recolectar solo el excedente", "trampa": false, "mods": [], "por_que": "Poco riesgo, poco beneficio.", "resultados": {"bueno": {"agua": 4, "combustible": -1}, "intermedio": {"agua": 3, "combustible": -1}, "malo": {"agua": 2}}}, {"id": "C", "texto": "Apagar las celdas y usar baterías", "trampa": false, "mods": [{"v": "electricidad", "op": ">", "x": 60.0, "m": 0.3}], "por_que": "Ahorras combustible, pero agotas las baterías.", "resultados": {"bueno": {"combustible": 4, "electricidad": -10}, "intermedio": {"combustible": 3, "electricidad": -14}, "malo": {"combustible": 2, "electricidad": -18}}}]},
+	{"id": "R09_orina", "categoria": "recursos", "tema": "Reciclaje de agua", "gravedad": 0, "dia_min": 4, "dia_max": 13, "tiempo_s": 25, "responsable": "sofia", "texto": "El procesador de orina funciona al límite. Con ajustes puede recuperar más agua, pero hay un costo.", "foco": "agua", "opciones": [{"id": "A", "texto": "Aumentar el ciclo de destilación", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 30.0, "m": -0.5}], "por_que": "Recupera más agua, pero aumenta el consumo y el calor.", "resultados": {"bueno": {"agua": 7, "electricidad": -7}, "intermedio": {"agua": 5, "electricidad": -10, "temperatura": 1}, "malo": {"agua": 3, "electricidad": -12, "temperatura": 2}}}, {"id": "B", "texto": "Añadir un pretratamiento químico", "trampa": false, "mods": [], "por_que": "Mejora el rendimiento, pero el químico es limitado.", "resultados": {"bueno": {"agua": 5, "estres_todos": 3}, "intermedio": {"agua": 4, "estres_todos": 6, "salud_todos": -2}, "malo": {"agua": 2, "estres_todos": 8, "salud_todos": -4}}}, {"id": "C", "texto": "Mantener el ciclo y racionar el agua", "trampa": false, "mods": [{"v": "agua", "op": ">", "x": 50.0, "m": 0.3}], "por_que": "No toca el sistema, pero el agua escasea.", "resultados": {"bueno": {"agua": 2, "estres_todos": 10}, "intermedio": {"agua": 1, "estres_todos": 13, "salud_todos": -3}, "malo": {"estres_todos": 15, "salud_todos": -5}}}]},
+	{"id": "R10_temperatura", "categoria": "recursos", "tema": "Ahorro eléctrico", "gravedad": 0, "dia_min": 3, "dia_max": 13, "tiempo_s": 25, "responsable": "sofia", "texto": "Bajar la temperatura de la cabina ahorra energía de calefacción, pero afecta el confort.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Bajar 2 °C y reforzar la ropa térmica", "trampa": false, "mods": [{"v": "temperatura", "op": "<", "x": 19.0, "m": -0.5}], "por_que": "Ahorras energía, pero el frío cansa.", "resultados": {"bueno": {"electricidad": 6, "temperatura": -2, "estres_todos": 5}, "intermedio": {"electricidad": 5, "temperatura": -2, "estres_todos": 9, "salud_todos": -2}, "malo": {"electricidad": 3, "temperatura": -2, "estres_todos": 12, "salud_todos": -3}}}, {"id": "B", "texto": "Bajar 4 °C y dormir en bolsas térmicas", "trampa": false, "mods": [{"v": "estres_prom", "op": ">", "x": 60.0, "m": -0.5}], "por_que": "El ahorro es mayor, pero el costo humano es alto.", "resultados": {"bueno": {"electricidad": 9, "temperatura": -4, "estres_todos": 10}, "intermedio": {"electricidad": 7, "temperatura": -4, "estres_todos": 14, "salud_todos": -3}, "malo": {"electricidad": 5, "temperatura": -4, "estres_todos": 18, "salud_todos": -6}}}, {"id": "C", "texto": "Mantener la temperatura y recortar otros consumos", "trampa": false, "mods": [], "por_que": "Cuidas la comodidad, pero recortas ciencia.", "resultados": {"bueno": {"electricidad": 3, "ciencia": -8}, "intermedio": {"electricidad": 2, "ciencia": -10, "estres_todos": 3}, "malo": {"electricidad": 1, "ciencia": -12, "estres_todos": 6}}}]},
+	{"id": "R11_sueno", "categoria": "recursos", "tema": "Ahorro metabólico", "gravedad": 0, "dia_min": 2, "dia_max": 13, "tiempo_s": 25, "responsable": "sofia", "texto": "Sincronizar el sueño de la tripulación reduce la actividad y el consumo de oxígeno y comida.", "foco": "comida", "opciones": [{"id": "A", "texto": "Sueño sincronizado de 9 horas", "trampa": false, "mods": [{"v": "ciencia", "op": ">", "x": 60.0, "m": 0.3}], "por_que": "Ahorra recursos y baja el estrés, pero detiene la ciencia.", "resultados": {"bueno": {"oxigeno": 3, "comida": 3, "estres_todos": -8, "ciencia": -10}, "intermedio": {"oxigeno": 2, "comida": 2, "estres_todos": -6, "ciencia": -13}, "malo": {"oxigeno": 1, "comida": 1, "estres_todos": -3, "ciencia": -15}}}, {"id": "B", "texto": "Turnos escalonados para mantener la operación", "trampa": false, "mods": [], "por_que": "Mantiene la nave activa, pero el descanso es peor.", "resultados": {"bueno": {"oxigeno": 2, "comida": 2, "estres_todos": -3, "ciencia": -3}, "intermedio": {"oxigeno": 2, "comida": 1, "ciencia": -5}, "malo": {"oxigeno": 1, "estres_todos": 3, "ciencia": -6}}}, {"id": "C", "texto": "Reducir el sueño para avanzar más ciencia", "trampa": false, "mods": [{"v": "ciencia", "op": "<", "x": 30.0, "m": 0.4}], "por_que": "Más ciencia hoy a costa de cansancio acumulado.", "resultados": {"bueno": {"ciencia": 10, "estres_todos": 10, "salud_todos": -3}, "intermedio": {"ciencia": 8, "estres_todos": 14, "salud_todos": -7}, "malo": {"ciencia": 5, "estres_todos": 18, "salud_todos": -10}}}]},
+	{"id": "R12_modo_ahorro_instrumentos", "categoria": "recursos", "tema": "Gestión de carga útil", "gravedad": 0, "dia_min": 3, "dia_max": 13, "tiempo_s": 25, "responsable": "leo", "texto": "Los instrumentos científicos podrían funcionar en modo ahorro de energía por unas horas.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Modo ahorro en todos los instrumentos", "trampa": false, "mods": [], "por_que": "Ahorras electricidad con poco costo de datos.", "resultados": {"bueno": {"electricidad": 6, "datos": -3, "ciencia": -4}, "intermedio": {"electricidad": 5, "datos": -5, "ciencia": -7}, "malo": {"electricidad": 3, "datos": -6, "ciencia": -10}}}, {"id": "B", "texto": "Apagar un solo instrumento de alto consumo", "trampa": false, "mods": [], "por_que": "El ahorro es mayor, pero el instrumento es el más valioso.", "resultados": {"bueno": {"electricidad": 8, "ciencia": -8}, "intermedio": {"electricidad": 6, "ciencia": -10, "estres_leo": 5}, "malo": {"electricidad": 4, "ciencia": -12, "estres_leo": 10}}}, {"id": "C", "texto": "No tocar nada y confiar en el margen", "trampa": false, "mods": [{"v": "electricidad", "op": ">", "x": 60.0, "m": 0.4}], "por_que": "Evitas tocar la ciencia, pero la electricidad sigue cayendo.", "resultados": {"bueno": {}, "intermedio": {"electricidad": -3}, "malo": {"electricidad": -6}}}]},
+	{"id": "R13_iluminacion", "categoria": "recursos", "tema": "Ahorro eléctrico", "gravedad": 0, "dia_min": 2, "dia_max": 13, "tiempo_s": 25, "responsable": "marcus", "texto": "Reducir la iluminación y las pantallas puede ahorrar algo de energía.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Reducir luces a un 50 %", "trampa": false, "mods": [], "por_que": "Ahorro pequeño, pero afecta el ánimo.", "resultados": {"bueno": {"electricidad": 3, "estres_todos": 5}, "intermedio": {"electricidad": 3, "estres_todos": 8}, "malo": {"electricidad": 2, "estres_todos": 10}}}, {"id": "B", "texto": "Apagar pantallas no esenciales", "trampa": false, "mods": [], "por_que": "Poco impacto, pero casi sin costo.", "resultados": {"bueno": {"electricidad": 4, "estres_todos": 3}, "intermedio": {"electricidad": 3, "estres_todos": 6, "ciencia": -2}, "malo": {"electricidad": 2, "estres_todos": 8, "ciencia": -3}}}, {"id": "C", "texto": "Apagar todo menos lo vital y usar linternas", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 25.0, "m": 0.5}], "por_que": "El ahorro es mayor, pero el estrés se dispara.", "resultados": {"bueno": {"electricidad": 8, "estres_todos": 18}, "intermedio": {"electricidad": 7, "estres_todos": 22, "salud_todos": -3}, "malo": {"electricidad": 5, "estres_todos": 25, "salud_todos": -5}}}]},
+	{"id": "R14_kit_supervivencia", "categoria": "recursos", "tema": "Reservas de emergencia", "gravedad": 0, "dia_min": 6, "dia_max": 13, "tiempo_s": 25, "responsable": "sofia", "texto": "Existe un kit de raciones de emergencia sellado para un regreso forzado. ¿Abrirlo?", "foco": "comida", "opciones": [{"id": "A", "texto": "Abrir el kit ahora para suplir la comida", "trampa": false, "mods": [{"v": "comida", "op": "<", "x": 30.0, "m": 0.5}], "por_que": "Resuelve el hambre ya, pero consume la reserva de último recurso.", "resultados": {"bueno": {"comida": 10, "hambre_todos": -10, "estres_todos": -5}, "intermedio": {"comida": 8, "hambre_todos": -8, "estres_todos": -3}, "malo": {"comida": 6, "hambre_todos": -5}}}, {"id": "B", "texto": "No abrirlo y racionar con lo que hay", "trampa": false, "mods": [{"v": "comida", "op": ">", "x": 50.0, "m": 0.3}], "por_que": "Conservas la reserva, pero el hambre pasa factura.", "resultados": {"bueno": {"comida": 2, "hambre_todos": 10, "estres_todos": 8}, "intermedio": {"comida": 1, "hambre_todos": 13, "estres_todos": 11, "salud_todos": -3}, "malo": {"hambre_todos": 15, "estres_todos": 14, "salud_todos": -5}}}, {"id": "C", "texto": "Abrir solo la mitad y guardar el resto", "trampa": false, "mods": [], "por_que": "Equilibra, pero rompe el sello y es difícil de gestionar.", "resultados": {"bueno": {"comida": 5, "hambre_todos": -3}, "intermedio": {"comida": 4, "hambre_todos": -1, "estres_todos": 3}, "malo": {"comida": 3, "hambre_todos": 2, "estres_todos": 5}}}]},
+	{"id": "R15_ciencia_por_energia", "categoria": "recursos", "tema": "Priorización de carga útil", "gravedad": 0, "dia_min": 4, "dia_max": 13, "tiempo_s": 25, "responsable": "elena", "texto": "Para ahorrar energía, podrías cambiar parte de la ciencia por electricidad.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Pausar los instrumentos 12 horas", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 30.0, "m": 0.4}], "por_que": "Recuperas energía, pero Leo siente que la ciencia se sacrifica.", "resultados": {"bueno": {"electricidad": 12, "ciencia": -12, "estres_leo": 8}, "intermedio": {"electricidad": 9, "ciencia": -15, "estres_leo": 12}, "malo": {"electricidad": 6, "ciencia": -18, "estres_leo": 15}}}, {"id": "B", "texto": "Apagar solo el instrumento de mayor consumo", "trampa": false, "mods": [], "por_que": "Un recorte menor y más focalizado.", "resultados": {"bueno": {"electricidad": 8, "ciencia": -8}, "intermedio": {"electricidad": 6, "ciencia": -10}, "malo": {"electricidad": 4, "ciencia": -12}}}, {"id": "C", "texto": "Mantener la ciencia y aceptar el consumo", "trampa": false, "mods": [{"v": "electricidad", "op": ">", "x": 60.0, "m": 0.4}], "por_que": "Avanzas más, pero la electricidad se hunde.", "resultados": {"bueno": {"ciencia": 10, "electricidad": -4}, "intermedio": {"ciencia": 8, "electricidad": -7}, "malo": {"ciencia": 5, "electricidad": -10}}}]},
+	{"id": "R16_condensado_sombra", "categoria": "recursos", "tema": "Recuperación de agua", "gravedad": 0, "dia_min": 4, "dia_max": 13, "tiempo_s": 25, "responsable": "sofia", "texto": "El lado en sombra de la cápsula condensa más humedad, pero acceder a ella implica mover la carga.", "foco": "agua", "opciones": [{"id": "A", "texto": "Recolectar el condensado de la pared fría", "trampa": false, "mods": [], "por_que": "Más agua, pero cuesta tiempo.", "resultados": {"bueno": {"agua": 6, "ciencia": -4, "estres_todos": 4}, "intermedio": {"agua": 5, "ciencia": -6, "estres_todos": 6}, "malo": {"agua": 3, "ciencia": -8, "estres_todos": 8}}}, {"id": "B", "texto": "Aumentar la ventilación en esa zona", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 30.0, "m": -0.4}], "por_que": "Más rendimiento, pero más consumo.", "resultados": {"bueno": {"agua": 5, "electricidad": -5}, "intermedio": {"agua": 4, "electricidad": -7}, "malo": {"agua": 2, "electricidad": -8}}}, {"id": "C", "texto": "Dejar la humedad y no tocar nada", "trampa": false, "mods": [{"v": "agua", "op": ">", "x": 60.0, "m": 0.3}], "por_que": "No gasta nada, pero pierdes agua útil.", "resultados": {"bueno": {}, "intermedio": {"agua": -2, "temperatura": 1}, "malo": {"agua": -3, "temperatura": 1}}}]},
+	{"id": "R17_presion_cabina", "categoria": "recursos", "tema": "Atmósfera de cabina", "gravedad": 0, "dia_min": 5, "dia_max": 13, "tiempo_s": 25, "responsable": "marcus", "texto": "Bajar la presión total y subir el porcentaje de oxígeno reduce fugas y consumo, pero tiene riesgos.", "foco": "oxigeno", "opciones": [{"id": "A", "texto": "Bajar la presión de cabina un 10 %", "trampa": false, "mods": [{"v": "salud_prom", "op": "<", "x": 60.0, "m": -0.5}, {"v": "oxigeno", "op": "<", "x": 30.0, "m": 0.4}], "por_que": "Reduce la pérdida de oxígeno, pero la tripulación puede sentir los efectos.", "resultados": {"bueno": {"oxigeno": 6, "estres_todos": 8}, "intermedio": {"oxigeno": 4, "estres_todos": 12, "salud_todos": -5}, "malo": {"oxigeno": 2, "salud_todos": -10, "estres_todos": 15}}}, {"id": "B", "texto": "Subir el porcentaje de oxígeno", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 30.0, "m": -0.4}, {"v": "oxigeno", "op": "<", "x": 30.0, "m": 0.3}], "por_que": "Mejora la respiración, pero aumenta el riesgo de incendio.", "resultados": {"bueno": {"oxigeno": 3, "estres_todos": 3}, "intermedio": {"oxigeno": -2, "estres_todos": 2, "integridad": -3}, "malo": {"oxigeno": -6, "integridad": -5}}}, {"id": "C", "texto": "Dejar la atmósfera como está", "trampa": false, "mods": [], "por_que": "No hay riesgos nuevos, pero tampoco ahorro.", "resultados": {"bueno": {}, "intermedio": {"oxigeno": -2}, "malo": {"oxigeno": -3}}}]},
+	{"id": "R18_baterias_carga", "categoria": "recursos", "tema": "Gestión eléctrica", "gravedad": 0, "dia_min": 3, "dia_max": 13, "tiempo_s": 25, "responsable": "marcus", "texto": "Se pueden cargar las baterías de los instrumentos durante el período de más sol.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Cargar las baterías de instrumentos con los paneles a pleno", "trampa": false, "mods": [{"v": "temperatura", "op": ">", "x": 28.0, "m": -0.5}], "por_que": "Aprovecha el sol, pero calienta la nave.", "resultados": {"bueno": {"electricidad": 6, "temperatura": 1}, "intermedio": {"electricidad": 4, "temperatura": 2}, "malo": {"electricidad": 2, "temperatura": 2}}}, {"id": "B", "texto": "Cargar al 60 % para reducir calor", "trampa": false, "mods": [], "por_que": "Menos calor, menos energía.", "resultados": {"bueno": {"electricidad": 4}, "intermedio": {"electricidad": 3}, "malo": {"electricidad": 2}}}, {"id": "C", "texto": "No cargar y apagar instrumentos", "trampa": false, "mods": [], "por_que": "Recuperas energía, pero la ciencia se detiene.", "resultados": {"bueno": {"electricidad": 8, "ciencia": -8}, "intermedio": {"electricidad": 6, "ciencia": -11}, "malo": {"electricidad": 4, "ciencia": -14}}}]},
+	{"id": "R19_enjuague_comida", "categoria": "recursos", "tema": "Uso eficiente del agua", "gravedad": 0, "dia_min": 2, "dia_max": 13, "tiempo_s": 25, "responsable": "sofia", "texto": "Reutilizar el agua de rehidratación de la comida puede ahorrar litros, pero hay riesgos.", "foco": "agua", "opciones": [{"id": "A", "texto": "Reutilizar el agua de enjuague en el siguiente alimento", "trampa": false, "mods": [], "por_que": "Ahorra agua, pero puede transferir bacterias.", "resultados": {"bueno": {"agua": 5, "estres_todos": 3}, "intermedio": {"agua": 4, "estres_todos": 6, "salud_todos": -3}, "malo": {"agua": 2, "salud_todos": -5, "estres_todos": 8}}}, {"id": "B", "texto": "Rehidratar con la mínima cantidad de agua", "trampa": false, "mods": [], "por_que": "Ahorra agua, pero la comida sabe peor.", "resultados": {"bueno": {"agua": 4, "estres_todos": 5}, "intermedio": {"agua": 3, "estres_todos": 8}, "malo": {"agua": 2, "estres_todos": 10}}}, {"id": "C", "texto": "Comer más alimentos secos y menos hidratados", "trampa": false, "mods": [{"v": "agua", "op": "<", "x": 25.0, "m": 0.4}], "por_que": "Ahorra mucha agua, pero provoca deshidratación.", "resultados": {"bueno": {"agua": 6, "estres_todos": 10, "salud_todos": -3}, "intermedio": {"agua": 5, "estres_todos": 13, "salud_todos": -6}, "malo": {"agua": 3, "estres_todos": 15, "salud_todos": -8}}}]},
+	{"id": "R20_barras_emergencia", "categoria": "recursos", "tema": "Nutrición", "gravedad": 0, "dia_min": 6, "dia_max": 13, "tiempo_s": 25, "responsable": "sofia", "texto": "Hay barras de emergencia de alto contenido calórico. Pueden estirar la comida, pero son poco apetecibles.", "foco": "comida", "opciones": [{"id": "A", "texto": "Usar las barras en una comida al día", "trampa": false, "mods": [], "por_que": "Estiran la comida, pero bajan la moral.", "resultados": {"bueno": {"comida": 5, "hambre_todos": -5, "estres_todos": 6}, "intermedio": {"comida": 4, "hambre_todos": -3, "estres_todos": 9}, "malo": {"comida": 3, "estres_todos": 12}}}, {"id": "B", "texto": "Guardar las barras para el último día", "trampa": false, "mods": [{"v": "dias_restantes", "op": ">", "x": 7.0, "m": 0.3}], "por_que": "Reserva para el final, pero pasan hambre ahora.", "resultados": {"bueno": {}, "intermedio": {"comida": -2, "hambre_todos": 3}, "malo": {"comida": -3, "hambre_todos": 5}}}, {"id": "C", "texto": "Comer las barras todos los días", "trampa": false, "mods": [{"v": "comida", "op": "<", "x": 25.0, "m": 0.5}], "por_que": "Aseguran la comida, pero el estrés se acumula.", "resultados": {"bueno": {"comida": 8, "hambre_todos": -8, "estres_todos": 15}, "intermedio": {"comida": 7, "hambre_todos": -4, "estres_todos": 19, "salud_todos": -2}, "malo": {"comida": 5, "estres_todos": 22, "salud_todos": -3}}}]},
+	{"id": "R21_modo_single", "categoria": "recursos", "tema": "Redundancia vs. ahorro", "gravedad": 0, "dia_min": 5, "dia_max": 13, "tiempo_s": 25, "responsable": "marcus", "texto": "Podrías apagar sistemas redundantes de aviónica para ahorrar energía, a costa de seguridad.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Apagar un canal redundante de la aviónica", "trampa": false, "mods": [{"v": "dias_restantes", "op": "<", "x": 5.0, "m": -0.5}], "por_que": "El ahorro es real, pero quedas sin respaldo.", "resultados": {"bueno": {"electricidad": 8, "estres_todos": 3}, "intermedio": {"electricidad": 6, "estres_todos": 6, "integridad": -3}, "malo": {"electricidad": 3, "integridad": -5, "estres_todos": 8}}}, {"id": "B", "texto": "Apagar redundancia solo por horas, en momentos tranquilos", "trampa": false, "mods": [], "por_que": "Ahorras menos, pero con menos riesgo.", "resultados": {"bueno": {"electricidad": 5}, "intermedio": {"electricidad": 4, "estres_todos": 3}, "malo": {"electricidad": 2, "estres_todos": 5}}}, {"id": "C", "texto": "Mantener todo encendido", "trampa": false, "mods": [{"v": "electricidad", "op": ">", "x": 60.0, "m": 0.4}], "por_que": "Máxima seguridad, pero sin ahorro.", "resultados": {"bueno": {}, "intermedio": {"electricidad": -2}, "malo": {"electricidad": -4}}}]},
+	{"id": "R22_circuito_agua", "categoria": "recursos", "tema": "Gestión térmica", "gravedad": 0, "dia_min": 3, "dia_max": 13, "tiempo_s": 25, "responsable": "marcus", "texto": "Hacer más eficiente el circuito de refrigeración puede ahorrar agua.", "foco": "agua", "opciones": [{"id": "A", "texto": "Reducir el caudal de refrigeración", "trampa": false, "mods": [{"v": "temperatura", "op": ">", "x": 28.0, "m": -0.5}], "por_que": "Ahorra agua, pero la cabina se calienta.", "resultados": {"bueno": {"agua": 5, "temperatura": 1}, "intermedio": {"agua": 4, "temperatura": 2, "salud_todos": -3}, "malo": {"agua": 3, "temperatura": 3, "salud_todos": -5}}}, {"id": "B", "texto": "Reparar fugas menores en las juntas", "trampa": false, "mods": [], "por_que": "Recupera pérdidas, pero cuesta tiempo.", "resultados": {"bueno": {"agua": 6, "ciencia": -4, "reparaciones_dias": 1}, "intermedio": {"agua": 5, "ciencia": -6, "reparaciones_dias": 1}, "malo": {"agua": 3, "ciencia": -8}}}, {"id": "C", "texto": "Dejarlo y compensar con raciones", "trampa": false, "mods": [{"v": "agua", "op": ">", "x": 60.0, "m": 0.4}], "por_que": "No toca el sistema, pero no ahorras.", "resultados": {"bueno": {"agua": 1, "estres_todos": 6}, "intermedio": {"agua": 1, "estres_todos": 8}, "malo": {"estres_todos": 10}}}]},
+	{"id": "R23_priorizar_datos", "categoria": "recursos", "tema": "Datos y comunicaciones", "gravedad": 0, "dia_min": 3, "dia_max": 13, "tiempo_s": 25, "responsable": "leo", "texto": "La memoria está casi llena. Transmitir los datos más valiosos libera espacio y reduce la presión.", "foco": "", "opciones": [{"id": "A", "texto": "Transmitir un resumen comprimido de los datos clave", "trampa": false, "mods": [{"v": "enlace_perdido", "op": "==", "x": 1.0, "m": -0.7}], "por_que": "Libera memoria con poco costo, pero pierde detalle.", "resultados": {"bueno": {"datos": -20, "electricidad": -4, "ciencia": 4}, "intermedio": {"datos": -14, "electricidad": -6, "ciencia": 2, "estres_leo": 4}, "malo": {"datos": -8, "electricidad": -8, "estres_leo": 8}}}, {"id": "B", "texto": "Transmitir los datos completos cuando haya enlace", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 30.0, "m": -0.4}, {"v": "enlace_perdido", "op": "==", "x": 1.0, "m": -0.7}], "por_que": "Es lo más completo, pero consume mucha energía.", "resultados": {"bueno": {"datos": -40, "electricidad": -8}, "intermedio": {"datos": -28, "electricidad": -10, "estres_todos": 4}, "malo": {"datos": -15, "electricidad": -12, "estres_todos": 8}}}, {"id": "C", "texto": "Borrar los datos menos útiles", "trampa": false, "mods": [{"v": "datos", "op": ">", "x": 85.0, "m": 0.4}], "por_que": "Libera espacio, pero pierdes ciencia y frustras a Leo.", "resultados": {"bueno": {"datos": -20, "ciencia": -5, "estres_leo": 12}, "intermedio": {"datos": -20, "ciencia": -9, "estres_leo": 16}, "malo": {"datos": -20, "ciencia": -12, "estres_leo": 20}}}]},
+	{"id": "R24_rotacion_pasiva", "categoria": "recursos", "tema": "Control térmico", "gravedad": 0, "dia_min": 3, "dia_max": 13, "tiempo_s": 25, "responsable": "elena", "texto": "Una rotación pasiva lenta reparte el calor del Sol y ahorra combustible de control de actitud.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Iniciar rotación pasiva lenta", "trampa": false, "mods": [{"v": "enlace_necesario", "op": "==", "x": 1.0, "m": -0.4}], "por_que": "Ahorra combustible y equilibra el calor, pero la antena pierde enlace a ratos.", "resultados": {"bueno": {"combustible": 5, "temperatura": -2, "electricidad": 2}, "intermedio": {"combustible": 4, "temperatura": -2, "electricidad": 1, "datos": -3}, "malo": {"combustible": 2, "temperatura": -1, "datos": -6}}}, {"id": "B", "texto": "Mantener orientación fija y compensar con el control de actitud", "trampa": false, "mods": [], "por_que": "Mantiene la antena, pero gasta combustible.", "resultados": {"bueno": {"combustible": -3, "electricidad": 4}, "intermedio": {"combustible": -5, "electricidad": 3}, "malo": {"combustible": -6, "electricidad": 2}}}, {"id": "C", "texto": "Rotación pasiva con pausas para transmitir", "trampa": false, "mods": [], "por_que": "Compromiso, pero complejo de gestionar.", "resultados": {"bueno": {"combustible": 3, "temperatura": -1}, "intermedio": {"combustible": 2, "temperatura": -1, "estres_todos": 3}, "malo": {"estres_todos": 6}}}]},
+	{"id": "R25_pedir_ayuda", "categoria": "recursos", "tema": "Operaciones con Houston", "gravedad": 0, "dia_min": 3, "dia_max": 13, "tiempo_s": 25, "responsable": "elena", "texto": "Houston puede proponer un procedimiento de ahorro, si hay enlace y si pides ayuda.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Pedir un procedimiento de ahorro a Houston", "trampa": false, "mods": [{"v": "enlace_perdido", "op": "==", "x": 1.0, "m": -0.8}], "por_que": "Ayuda experta, pero consume enlace y tiempo.", "resultados": {"bueno": {"electricidad": 6, "agua": 4, "estres_todos": -4, "datos": -5}, "intermedio": {"electricidad": 4, "agua": 2, "estres_todos": 1, "datos": -7}, "malo": {"electricidad": 2, "estres_todos": 5, "datos": -8}}}, {"id": "B", "texto": "Resolver con el equipo sin consultar", "trampa": false, "mods": [], "por_que": "Autonomía, pero sin la visión del resto del equipo.", "resultados": {"bueno": {"electricidad": 3, "agua": 2, "ciencia": -3}, "intermedio": {"electricidad": 2, "agua": 1, "ciencia": -2, "estres_todos": 4}, "malo": {"electricidad": 1, "estres_todos": 8}}}, {"id": "C", "texto": "Esperar a que Houston proponga algo", "trampa": false, "mods": [], "por_que": "No arriesgas nada, pero tampoco ahorras.", "resultados": {"bueno": {}, "intermedio": {"estres_todos": 4, "agua": -1}, "malo": {"estres_todos": 8, "agua": -2}}}]},
+	{"id": "R26_fuga_agua", "categoria": "recursos", "tema": "Recuperación de agua", "gravedad": 0, "dia_min": 3, "dia_max": 13, "tiempo_s": 25, "responsable": "marcus", "texto": "Una conexión de agua gotea. La pérdida es pequeña pero constante.", "foco": "agua", "opciones": [{"id": "A", "texto": "Apretar y sellar la conexión", "trampa": false, "mods": [], "por_que": "Recupera un goteo que se acumula, pero requiere tiempo.", "resultados": {"bueno": {"agua": 4, "estres_todos": 3}, "intermedio": {"agua": 3, "estres_todos": 5, "reparaciones_dias": 1}, "malo": {"agua": 2, "estres_todos": 6, "reparaciones_dias": 1}}}, {"id": "B", "texto": "Recoger las gotas con paños y reciclarlas", "trampa": false, "mods": [{"v": "estres_prom", "op": "<", "x": 40.0, "m": 0.2}], "por_que": "No arriesgas la conexión, pero pierdes tiempo.", "resultados": {"bueno": {"agua": 3, "ciencia": -3, "estres_todos": 4}, "intermedio": {"agua": 2, "ciencia": -5, "estres_todos": 6}, "malo": {"agua": 1, "ciencia": -6, "estres_todos": 8}}}, {"id": "C", "texto": "Ignorarlo hasta que empeore", "trampa": false, "mods": [{"v": "dias_restantes", "op": "<", "x": 3.0, "m": 0.5}], "por_que": "Ahorras tiempo, pero el agua se pierde.", "resultados": {"bueno": {}, "intermedio": {"agua": -3, "estres_todos": 3}, "malo": {"agua": -6, "estres_todos": 5}}}]},
+	{"id": "R27_litio_trampa", "categoria": "recursos", "tema": "Control de CO₂", "gravedad": 0, "dia_min": 6, "dia_max": 13, "tiempo_s": 25, "responsable": "marcus", "texto": "Quedan pocos cartuchos de CO₂. Alguien sugiere improvisar con otros materiales de la nave.", "foco": "", "opciones": [{"id": "A", "texto": "Usar los cartuchos de forma estricta y reducir actividad", "trampa": false, "mods": [], "por_que": "Es lo que dice el procedimiento, pero tiene costo.", "resultados": {"bueno": {"ciencia": -8, "estres_todos": 8}, "intermedio": {"filtros": -1, "ciencia": -10, "estres_todos": 10}, "malo": {"filtros": -1, "ciencia": -12, "estres_todos": 12}}}, {"id": "B", "texto": "Improvisar un filtro con material absorbente de la nave", "trampa": true, "mods": [], "por_que": "Parece ingenioso, pero ningún material improvisado sustituye a un depurador de CO₂.", "resultados": {"bueno": {"estres_todos": 3}, "intermedio": {"estres_todos": 8, "salud_todos": -6}, "malo": {"salud_todos": -12, "estres_todos": 12}}}, {"id": "C", "texto": "Pedir a Houston un procedimiento de contingencia", "trampa": false, "mods": [{"v": "enlace_perdido", "op": "==", "x": 1.0, "m": -0.7}], "por_que": "Si hay enlace es lo más seguro.", "resultados": {"bueno": {"estres_todos": -3}, "intermedio": {"estres_todos": 1}, "malo": {"estres_todos": 5}}}]},
+	{"id": "R28_bateria_ciencia", "categoria": "recursos", "tema": "Gestión eléctrica", "gravedad": 0, "dia_min": 6, "dia_max": 13, "tiempo_s": 25, "responsable": "marcus", "texto": "Las baterías de los instrumentos científicos pueden alimentar el soporte vital en emergencia.", "foco": "electricidad", "opciones": [{"id": "A", "texto": "Usar las baterías de instrumentos como reserva", "trampa": false, "mods": [{"v": "electricidad", "op": "<", "x": 30.0, "m": 0.5}], "por_que": "Es energía extra, pero la ciencia queda sin alimentación.", "resultados": {"bueno": {"electricidad": 10, "ciencia": -8}, "intermedio": {"electricidad": 8, "ciencia": -11, "estres_leo": 6}, "malo": {"electricidad": 5, "ciencia": -14, "estres_leo": 12}}}, {"id": "B", "texto": "Usar solo una parte", "trampa": false, "mods": [], "por_que": "Más equilibrado.", "resultados": {"bueno": {"electricidad": 5, "ciencia": -4}, "intermedio": {"electricidad": 4, "ciencia": -6}, "malo": {"electricidad": 3, "ciencia": -8}}}, {"id": "C", "texto": "No tocarlas", "trampa": false, "mods": [{"v": "electricidad", "op": ">", "x": 60.0, "m": 0.4}], "por_que": "Proteges la ciencia, pero la energía sigue cayendo.", "resultados": {"bueno": {}, "intermedio": {"electricidad": -3}, "malo": {"electricidad": -5}}}]},
+	{"id": "R29_orbita_baja", "categoria": "recursos", "tema": "Mecánica orbital", "gravedad": 0, "dia_min": 8, "dia_max": 10, "tiempo_s": 25, "responsable": "elena", "texto": "Cambiar la altura de la órbita lunar puede ahorrar combustible en el retorno, pero cuesta tiempo.", "foco": "combustible", "opciones": [{"id": "A", "texto": "Cambiar a una órbita más baja antes del retorno", "trampa": false, "mods": [{"v": "combustible", "op": "<", "x": 30.0, "m": -0.5}], "por_que": "Ahorra combustible en el retorno, pero la maniobra también gasta.", "resultados": {"bueno": {"combustible": 6, "ciencia": -4, "estres_todos": 5}, "intermedio": {"combustible": 4, "ciencia": -6, "estres_todos": 8}, "malo": {"combustible": 2, "ciencia": -8, "estres_todos": 10}}}, {"id": "B", "texto": "Mantener la órbita actual", "trampa": false, "mods": [{"v": "combustible", "op": ">", "x": 60.0, "m": 0.3}], "por_que": "Sin riesgo, pero sin ahorro.", "resultados": {"bueno": {}, "intermedio": {"combustible": -2}, "malo": {"combustible": -3}}}, {"id": "C", "texto": "Esperar a la ventana de retorno exacta", "trampa": false, "mods": [], "por_que": "Ahorra algo, pero atrasa la ciencia.", "resultados": {"bueno": {"combustible": 3, "ciencia": 3}, "intermedio": {"combustible": 2, "ciencia": 2, "estres_todos": 4}, "malo": {"estres_todos": 8}}}]},
+	{"id": "R30_mezclar_raciones", "categoria": "recursos", "tema": "Nutrición", "gravedad": 0, "dia_min": 4, "dia_max": 13, "tiempo_s": 25, "responsable": "sofia", "texto": "Mezclar y reorganizar las raciones puede evitar desperdicio y mantener las calorías.", "foco": "comida", "opciones": [{"id": "A", "texto": "Reorganizar los menús y combinar sobras", "trampa": false, "mods": [], "por_que": "Reduce el desperdicio, pero requiere trabajo.", "resultados": {"bueno": {"comida": 4, "estres_todos": -3}, "intermedio": {"comida": 3}, "malo": {"comida": 2, "estres_todos": 3}}}, {"id": "B", "texto": "Asignar raciones por tripulante según su actividad", "trampa": false, "mods": [{"v": "estres_prom", "op": ">", "x": 60.0, "m": -0.4}], "por_que": "Más eficiente, pero genera tensión por la desigualdad.", "resultados": {"bueno": {"comida": 5, "hambre_todos": 3, "estres_todos": 3}, "intermedio": {"comida": 4, "hambre_todos": 6, "estres_todos": 6}, "malo": {"comida": 3, "hambre_todos": 8, "estres_todos": 8}}}, {"id": "C", "texto": "Mantener el reparto igual para todos", "trampa": false, "mods": [{"v": "estres_prom", "op": ">", "x": 60.0, "m": 0.3}], "por_que": "Mantiene la moral, pero desperdicia comida.", "resultados": {"bueno": {"estres_todos": -5}, "intermedio": {"comida": -2, "estres_todos": -3}, "malo": {"comida": -3}}}]},
 ]
 
-func obtener(dia: int) -> Dictionary:
-	return dias[dia - 1]
+var hitos: Array = [
+	{"id": "H01_insercion", "categoria": "hito", "tema": "Inserción orbital (el despegue)", "gravedad": 2, "dia_fijo": 1, "tiempo_s": 20, "responsable": "marcus", "foco": "", "texto": "La cápsula Orión alcanza la órbita terrestre baja. Leo Okafor quiere encender de inmediato los espectrómetros para calibrar datos antes de la inyección translunar; Marcus Chen advierte que el consumo de batería inicial es riesgoso.", "opciones": [{"id": "A", "texto": "Priorizar sistemas de soporte vital y navegación", "descripcion": "Esperar a estabilizar los paneles solares antes de encender instrumentos científicos.", "tier_fijo": "bueno", "resultados": {"bueno": {"electricidad": -5, "estres_leo": 10}}, "por_que": "La estabilización térmica y energética tras el lanzamiento es crítica antes de activar cargas útiles (NASA Artemis Flight Rules).", "fuente": ""}, {"id": "B", "texto": "Encender todos los sensores a máxima potencia", "descripcion": "Darle gusto a Leo para empezar la ciencia desde el primer minuto.", "tier_fijo": "malo", "resultados": {"malo": {"electricidad": -25, "integridad": -10}}, "por_que": "El pico de demanda energético sobrecarga las celdas de combustible antes del despliegue total de paneles.", "fuente": ""}]},
+	{"id": "H04_cruce_lunar", "categoria": "hito", "tema": "Corrección de trayectoria (cruce lunar)", "gravedad": 2, "dia_fijo": 4, "tiempo_s": 20, "responsable": "elena", "foco": "", "texto": "La nave entra en la esfera de influencia gravitacional de la Luna. Elena Marín debe ejecutar un encendido de motores para alinear la órbita.", "opciones": [{"id": "A", "texto": "Encendido calculado por computadora", "descripcion": "Confiar en la telemetría automatizada aunque tome 2 horas más de ajuste.", "tier_fijo": "bueno", "resultados": {"bueno": {"agua": -5, "electricidad": -5, "combustible": -8}}, "por_que": "Las maniobras automatizadas de baja aceleración optimizan el propelente y reducen la fatiga estructural del casco.", "fuente": ""}, {"id": "B", "texto": "Maniobra manual agresiva", "descripcion": "Forzar los propulsores principales para ganar tiempo.", "tier_fijo": "malo", "resultados": {"malo": {"electricidad": -20, "integridad": -25, "combustible": -20}}, "por_que": "El empuje manual excesivo genera vibraciones innecesarias y desperdicia reservas críticas de retorno.", "fuente": ""}]},
+	{"id": "H08_muestreo", "categoria": "hito", "tema": "Muestreo en órbita baja (dilema científico)", "gravedad": 2, "dia_fijo": 8, "tiempo_s": 20, "responsable": "leo", "foco": "", "texto": "Sobrevuelan el polo sur lunar. Leo pide extender 3 horas la recolección espectral y de regolito; el oxígeno de cabina está justo en el margen.", "opciones": [{"id": "A", "texto": "Recolección dentro de ventana segura", "descripcion": "Tomar únicamente las muestras prioritarias y cerrar compuertas a tiempo.", "tier_fijo": "bueno", "resultados": {"bueno": {"oxigeno": -10, "ciencia": 35}}, "por_que": "Cumplir los tiempos límite de actividad garantiza el margen de reserva para el encendido de retorno.", "fuente": ""}, {"id": "B", "texto": "Extender la operación al límite", "descripcion": "Quedarse hasta agotar las baterías de los sensores.", "tier_fijo": "malo", "resultados": {"malo": {"oxigeno": -30, "electricidad": -25, "ciencia": 20}}, "por_que": "Exceder las ventanas operativas deja a la tripulación sin margen ante emergencias de regreso.", "fuente": ""}]},
+	{"id": "H10_retorno", "categoria": "hito", "tema": "Encendido de retorno (punto de no retorno)", "gravedad": 3, "dia_fijo": 10, "tiempo_s": 25, "responsable": "elena", "foco": "", "ruta_aborto": true, "penal_ruta_aborto": {"combustible": -15, "electricidad": -15}, "texto": "Es hora de abandonar la órbita lunar. Elena evalúa las cuatro barras de la nave. Si el agua, la comida o el oxígeno están por debajo de 25 % (o Marcus está crítico), la computadora advierte: masa excesiva para la trayectoria de retorno con las reservas actuales.", "opciones": [{"id": "A", "texto": "Ejecutar encendido nominal de regreso", "descripcion": "Encender el motor principal siguiendo la ventana orbital exacta.", "tier_fijo": "bueno", "resultados": {"bueno": {"electricidad": -10, "agua": -5, "combustible": -15}}, "por_que": "La trayectoria de retorno libre aprovecha la gravedad terrestre para minimizar el gasto de recursos.", "fuente": ""}, {"id": "B", "texto": "Acelerar consumo para llegar antes", "descripcion": "Forzar sistemas de soporte vital al máximo para acortar tiempos de revisión.", "tier_fijo": "malo", "resultados": {"malo": {"agua": -20, "oxigeno": -20, "combustible": -30}}, "por_que": "No es posible acortar mecánicamente el tránsito translunar sin comprometer la integridad del escudo térmico.", "fuente": ""}, {"id": "C", "texto": "Abortar la carga científica", "descripcion": "Soltar el módulo de muestras para aligerar peso y priorizar la supervivencia de la tripulación. Lleva al Final Intermedio.", "tier_fijo": "intermedio", "resultados": {"intermedio": {"abortar": true, "combustible": 10}}, "por_que": "Con las reservas en rojo, aligerar la nave es la única forma de completar el retorno con la tripulación viva.", "fuente": "", "requiere_aborto": true}]},
+	{"id": "H14_reentrada", "categoria": "hito", "tema": "El aire pesado y la reentrada", "gravedad": 3, "dia_fijo": 14, "tiempo_s": 15, "responsable": "sofia", "foco": "", "texto": "A horas de entrar en la atmósfera terrestre, los filtros de hidróxido de litio (scrubbers) que limpian el dióxido de carbono se saturan por completo. El aire se vuelve pesado; todos sufren dolor de cabeza y visión borrosa.", "opciones": [{"id": "A", "texto": "Rotar cartuchos de respaldo y reposo absoluto", "descripcion": "Instalar los últimos filtros de emergencia y ordenar respiración calmada sin actividad física.", "tier_fijo": "bueno", "resultados": {"bueno": {"oxigeno": -5, "filtros": -1}}, "por_que": "Reducir la tasa metabólica disminuye la exhalación de CO2 mientras los filtros de reserva estabilizan la cabina.", "fuente": "https://www.nasa.gov/wp-content/uploads/2023/07/eclss-technical-brief-ochmo.pdf"}, {"id": "B", "texto": "Mantener actividad física y maniobras intensas sin cambiar filtros", "descripcion": "Seguir operando a máximo ritmo respiratorio.", "tier_fijo": "malo", "resultados": {"malo": {"salud_todos": -50, "forzar_final": "malo"}}, "por_que": "La acumulación de CO2 provoca intoxicación aguda, pérdida de visión y muerte por asfixia.", "fuente": ""}]},
+]
+
+func hito_del_dia(dia: int) -> Dictionary:
+	for h in hitos:
+		if int(h["dia_fijo"]) == dia:
+			return h
+	return {}
 
 func _ready():
-	print("Eventos cargados: ", dias.size())
+	print("Eventos cargados: ", banco.size(), " decisiones del banco y ", hitos.size(), " hitos")
