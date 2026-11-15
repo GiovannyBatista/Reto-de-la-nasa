@@ -1,8 +1,20 @@
 [gd_scene format=3 uid="uid://yvn2be2vkd8p"]
 
-[ext_resource type="Script" uid="uid://du4t5ek5fn4iq" path="res://starfield.gd" id="1_myc2h"]
+[ext_resource type="Texture2D" uid="uid://troaxymv5q3k" path="res://scenes/TileMaps/2x/stars-far-tile.png" id="1_5c3j1"]
+[ext_resource type="Texture2D" uid="uid://cxmo5qyjaqqxd" path="res://scenes/TileMaps/2x/cabina.png" id="2_5c3j1"]
 
 [node name="salaMando" type="Node2D" unique_id=1219883267]
 
-[node name="Starfield" type="Node2D" parent="." unique_id=858614493]
-script = ExtResource("1_myc2h")
+[node name="starfield" type="Parallax2D" parent="." unique_id=483724415]
+repeat_size = Vector2(256, 256)
+autoscroll = Vector2(-15, 0)
+repeat_times = 3
+
+[node name="starfar" type="Sprite2D" parent="starfield" unique_id=194023481]
+texture = ExtResource("1_5c3j1")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=2066476476]
+visible = false
+position = Vector2(640, 360)
+scale = Vector2(0.765, 0.765)
+texture = ExtResource("2_5c3j1")
