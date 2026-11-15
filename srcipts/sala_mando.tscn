@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://yvn2be2vkd8p"]
+
+[ext_resource type="Script" uid="uid://du4t5ek5fn4iq" path="res://starfield.gd" id="1_myc2h"]
+
+[node name="salaMando" type="Node2D" unique_id=1219883267]
+
+[node name="Starfield" type="Node2D" parent="." unique_id=858614493]
+script = ExtResource("1_myc2h")
