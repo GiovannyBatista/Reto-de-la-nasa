@@ -3,12 +3,12 @@ extends Control
 # De los 10.000 CM, 4.000 son suministros obligatorios y 6.000 se reparten entre Paquete A, B o personalizado.
 # FONDO OPCIONAL: si existe res://assets/fondo_cabina.png se usa como fondo; si no, se dibuja un cielo con estrellas.
 
-const C_PANEL: Color = Color(0.08, 0.11, 0.16, 0.92)
-const C_PANEL_CLARO: Color = Color(0.12, 0.17, 0.24, 0.95)
+const C_PANEL: Color = Color(0.05, 0.07, 0.12, 0.97)          # el último número (0.97) es la opacidad: 1.0 = nada transparente
+const C_PANEL_CLARO: Color = Color(0.09, 0.13, 0.20, 0.98)
 const C_BORDE: Color = Color(0.36, 0.46, 0.58)
-const C_VERDE: Color = Color(0.35, 0.85, 0.45)
-const C_AMARILLO: Color = Color(0.95, 0.80, 0.25)
-const C_TEXTO_SUAVE: Color = Color(0.72, 0.78, 0.85)
+const C_VERDE: Color = Color(0.55, 1.0, 0.65)
+const C_AMARILLO: Color = Color(1.0, 0.88, 0.40)
+const C_TEXTO_SUAVE: Color = Color(0.93, 0.96, 1.0)
 const COLOR_TEXTO_BOTON: Color = Color(0.08, 0.10, 0.16)   # texto de los botones con imagen (oscuro para botones claros)
 const ICONOS: Dictionary = {"soporte": "💧", "celdas": "⚡", "filtros": "🌀", "instrumentos": "🔬"}
 
@@ -45,6 +45,9 @@ func _aplicar_fuente() -> void:
 	var t = Theme.new()
 	t.default_font = f
 	t.default_font_size = 16   # IMPORTANTE: solo múltiplos de 8 (16, 24, 32); otros tamaños se ven borrosos
+	# Contorno oscuro en todos los textos para que se lean sobre las estrellas
+	t.set_color("font_outline_color", "Label", Color(0.02, 0.03, 0.08))
+	t.set_constant("outline_size", "Label", 4)
 	theme = t
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
@@ -250,11 +253,54 @@ func _estilo_boton(b: Button, color: Color, borde: Color) -> void:
 	b.add_theme_stylebox_override("pressed", _caja(color.darkened(0.2), borde))
 	b.add_theme_stylebox_override("disabled", _caja(color.darkened(0.5), C_BORDE))
 
+# Escena de fondo espacial (TileMapLayers + Tierra + Sol). Se prueban estas rutas en orden; cambia la lista si la guardaste en otro lado.
+const RUTAS_ESCENA_FONDO: Array = [
+	"res://scenes/background_shop.tscn",
+	"res://background_shop.tscn",
+	"res://scenes/TileMaps/background_shop.tscn",
+]
+const TAM_TILE_FONDO: int = 256   # tamaño de cada celda de estrellas (px)
+
+func _poner_escena_fondo() -> bool:
+	var escena: PackedScene = null
+	for ruta in RUTAS_ESCENA_FONDO:
+		if ResourceLoader.exists(ruta):
+			escena = load(ruta)
+			break
+	if escena == null:
+		return false
+	var fondo: Node = escena.instantiate()
+	add_child(fondo)
+	var tam: Vector2 = get_viewport_rect().size
+	# Rellena las capas de estrellas para cubrir toda la pantalla (la escena original solo cubre 512x512)
+	var capas: Node = fondo.find_child("Tielmaplayers", true, false)
+	if capas != null:
+		var columnas: int = int(ceil(tam.x / float(TAM_TILE_FONDO))) + 4
+		var filas: int = int(ceil(tam.y / float(TAM_TILE_FONDO))) + 4
+		for capa in capas.get_children():
+			if capa is TileMapLayer:
+				for x in columnas:
+					for y in filas:
+						capa.set_cell(Vector2i(x, y), 0, Vector2i(0, 0))
+	# Tierra y Sol en posiciones que dependen del tamaño de la pantalla
+	var tierra: Node = fondo.find_child("tierra", true, false)
+	if tierra is Node2D:
+		tierra.position = Vector2(tam.x * 0.86, tam.y * 0.22)
+		tierra.scale = Vector2(2, 2)
+	var sol: Node = fondo.find_child("sol", true, false)
+	if sol is Node2D:
+		sol.position = Vector2(tam.x * 0.07, tam.y * 0.16)
+		sol.scale = Vector2(2, 2)
+	return true
+
 func _fondo() -> void:
 	var base = ColorRect.new()
 	base.color = Color(0.02, 0.03, 0.08)
 	base.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(base)
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if _poner_escena_fondo():
+		return
 	var ruta: String = "res://assets/fondo_cabina.png"
 	if ResourceLoader.exists(ruta):
 		var tex = TextureRect.new()
