@@ -18,7 +18,8 @@ const ICONOS: Dictionary = {"soporte": "💧", "celdas": "⚡", "filtros": "🌀
 @export var icono_celdas: Texture2D
 @export var icono_filtros: Texture2D
 @export var icono_instrumentos: Texture2D
-const TAM_RANURA: int = 52       # tamaño del cuadro del icono (px)
+const ESCALA_SWITCH: int = 3     # cuántas veces se agranda el interruptor (2, 3, 4...)
+const TAM_RANURA: int = 52      # tamaño del cuadro del icono (px)
 const TAM_ICONO: int = 32        # tamaño del icono dentro del cuadro (px)
 const BORDE_MARCO: int = 4       # píxeles de borde del marco que no se estiran
 
@@ -390,7 +391,7 @@ func _construir_resumen(col: VBoxContainer) -> void:
 	for par in [["checked", "switch_on"], ["checked_disabled", "switch_on"], ["unchecked", "switch_off"], ["unchecked_disabled", "switch_off"]]:
 		var ruta_sw: String = "res://assets/ui/%s.png" % par[1]
 		if ResourceLoader.exists(ruta_sw):
-			sin_tiempo.add_theme_icon_override(par[0], load(ruta_sw))
+			sin_tiempo.add_theme_icon_override(par[0], _escalar(load(ruta_sw), ESCALA_SWITCH))
 	der.add_child(sin_tiempo)
 	_texto(der, "Sin temporizador\nen las decisiones", C_TEXTO_SUAVE)
 
@@ -425,6 +426,14 @@ func _on_cambiar(id: String, delta: int):
 	niveles[id] = nuevo
 	etiqueta_mensaje.text = ""
 	actualizar()
+
+# Agranda una imagen por un factor entero, sin suavizar (mantiene los píxeles duros)
+func _escalar(tex: Texture2D, factor: int) -> Texture2D:
+	var img: Image = tex.get_image()
+	if img == null or factor <= 1:
+		return tex
+	img.resize(img.get_width() * factor, img.get_height() * factor, Image.INTERPOLATE_NEAREST)
+	return ImageTexture.create_from_image(img)
 
 func _on_modo_sin_tiempo(activado: bool):
 	GameManager.modo_sin_temporizador = activado

@@ -22,6 +22,8 @@ Eventos="*uid://2vay4s2i1bqv"
 
 [display]
 
+window/size/viewport_width=1600
+window/size/viewport_height=900
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
