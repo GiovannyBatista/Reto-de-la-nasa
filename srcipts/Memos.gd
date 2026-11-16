@@ -118,7 +118,7 @@ static func para_decision(decision: Dictionary) -> Dictionary:
 		if tema.findn(String(par[0])) != -1:
 			ref = par[1]
 			break
-	return {"titulo": tema.to_upper(), "texto": "", "fuente": ref["nombre"], "url": ref["url"]}
+	return {"titulo": tema, "texto": "", "fuente": ref["nombre"], "url": ref["url"]}
 
 # Memo que cierra cada final
 static func para_final(tipo: String) -> Dictionary:

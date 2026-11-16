@@ -426,6 +426,33 @@ def icono_herramienta():
     return contorno(img)
 
 
+def icono_flecha(arriba):
+    """Flecha blanca (se tine de color en el juego): indica si algo sube o baja."""
+    img = lienzo(32, 32)
+    d = ImageDraw.Draw(img)
+    blanco = (250, 252, 255, 255)
+    if arriba:
+        d.polygon([(15, 4), (16, 4), (27, 17), (20, 17), (20, 27), (11, 27), (11, 17), (4, 17)], fill=blanco)
+    else:
+        d.polygon([(15, 27), (16, 27), (27, 14), (20, 14), (20, 4), (11, 4), (11, 14), (4, 14)], fill=blanco)
+    return contorno(img)
+
+
+def icono_ayuda():
+    """Signo de pregunta dentro de un circulo (boton de la guia)."""
+    img = lienzo(32, 32)
+    d = ImageDraw.Draw(img)
+    d.ellipse((3, 3, 28, 28), fill=(64, 150, 230, 255))
+    tono(img, lambda x, y: x + y > 38, 0.78)
+    blanco = (250, 252, 255, 255)
+    signo = [".######.", "##....##", "##....##", "......##", ".....##.", "....##..", "...##...", "...##...", "........", "...##...", "...##..."]
+    for j, fila in enumerate(signo):
+        for i, c in enumerate(fila):
+            if c == "#":
+                d.point((12 + i, 10 + j), fill=blanco)
+    return contorno(img)
+
+
 def icono_tierra_mini():
     img = lienzo(32, 32)
     d = ImageDraw.Draw(img)
@@ -1054,6 +1081,9 @@ def main(revision_dir=None):
         "luna": icono_luna_mini(),
         "orion_mini": icono_orion_mini(),
         "herramienta": icono_herramienta(),
+        "flecha_sube": icono_flecha(True),
+        "flecha_baja": icono_flecha(False),
+        "ayuda": icono_ayuda(),
     }
     for nombre, img in iconos.items():
         guardar(img, "iconos", nombre + ".png")

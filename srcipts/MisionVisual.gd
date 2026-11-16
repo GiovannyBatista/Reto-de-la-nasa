@@ -4,22 +4,28 @@ extends Control
 # Las reglas del juego NO están aquí: siguen en GameManager.gd y Eventos.gd. Este script solo dibuja.
 #
 # Cómo está acomodada la pantalla (pensada para mostrar poco texto):
-#   ARRIBA     -> día, los 5 recursos vitales (icono + barra + número), mapa del viaje y alarma
+#   ARRIBA     -> día, los 5 recursos vitales (icono + barra + número), mapa del viaje, alarma y ayuda
 #   IZQUIERDA  -> riel de "sistemas": casco, ciencia, datos, cabina, filtros de CO2 y radio
 #   DERECHA    -> las órdenes activas de hoy
 #   ABAJO      -> la tripulación: retrato (cambia de expresión) + 3 barritas (salud, estrés, hambre)
 #   CENTRO     -> la ventana al espacio y, encima, el panel de lo que está pasando
 #
 # Ciclo de cada día:
-#   órdenes -> consumo del día -> aviso -> decisión 1 -> (minijuego de reparación) -> resultado
-#           -> aviso -> decisión 2 -> resultado -> fin del día -> día siguiente
+#   órdenes -> consumo del día -> aviso -> decisión 1 -> (minijuego) -> resultado
+#           -> aviso -> decisión 2 -> (minijuego) -> resultado -> fin del día -> día siguiente
 #
-# Los detalles (nombres, números exactos) salen al dejar el ratón quieto sobre cada cosa.
+# Ayudas para el jugador:
+#   - Recorrido guiado: la primera vez que se llega al día 1 se señala cada zona de la pantalla.
+#   - Botón "?": abre la guía completa (Guia.gd) y detiene el reloj mientras está abierta.
+#   - Los detalles (nombres, números exactos) salen al dejar el ratón quieto sobre cada cosa.
+#
+# Idioma: los textos fijos se traducen solos; los que llevan números pasan por Idioma.t() (ver Idioma.gd).
 
 const Estilo = preload("res://srcipts/Estilo.gd")
 const FondoEspacio = preload("res://srcipts/FondoEspacio.gd")
 const Memos = preload("res://srcipts/Memos.gd")
 const Minijuego = preload("res://srcipts/Minijuego.gd")
+const Guia = preload("res://srcipts/Guia.gd")
 
 const VITALES: Array = [["agua", "Agua"], ["comida", "Comida"], ["oxigeno", "Oxígeno"], ["electricidad", "Electricidad"], ["combustible", "Combustible"]]
 const SISTEMAS: Array = [["integridad", "Casco"], ["ciencia", "Ciencia"], ["datos", "Datos"], ["temperatura", "Cabina"], ["filtros", "CO2"], ["enlace", "Radio"]]
@@ -38,6 +44,20 @@ const UNIDAD: Dictionary = {"temperatura": " °C", "filtros": ""}
 const NOMBRE_FICHA: Dictionary = {"integridad": "Casco", "datos": "Datos", "ciencia": "Ciencia", "temperatura": "Cabina", "filtros": "Filtros"}
 const RUTA_CABINA: String = "res://scenes/TileMaps/2x/cabina trasparente.png"
 const ANCHO_PANEL: float = 1240.0
+const SEGUNDOS_EXTRA: float = 10.0       # tiempo que se suma a cada decisión para que dé tiempo de leer
+# En qué tipos de decisión aparece un minijuego después de elegir bien
+const CON_MINIJUEGO: Array = ["nave", "recursos"]
+
+# Recorrido guiado del primer día: [título, explicación, zona que se señala]
+const PASOS_RECORRIDO: Array = [
+	["RECURSOS VITALES", "Bajan cada día. Si el agua, el oxígeno, la electricidad o el combustible llegan a 0, la misión termina.", "recursos"],
+	["SISTEMAS DE LA NAVE", "Casco, ciencia, datos, cabina, filtros de CO2 y radio. Deja el ratón encima de cada uno para ver qué hace.", "sistemas"],
+	["TU TRIPULACIÓN", "Cada uno tiene salud, estrés y hambre. Con mucho estrés cometen errores; con poca salud dejan de ayudar.", "tripulacion"],
+	["ÓRDENES DEL DÍA", "Cada mañana eliges cómo vivir hoy. En verde lo que ganas y en rojo lo que te cuesta. Después pulsa INICIAR EL DÍA.", "ordenes"],
+	["¿DUDAS?", "Este botón abre la guía completa cuando quieras: explica qué significa cada cosa.", "ayuda"],
+]
+# El recorrido solo sale una vez por sesión de juego
+static var recorrido_visto: bool = false
 
 # --- Fondo ---
 var fondo: Control
@@ -51,6 +71,7 @@ var trayectoria: Control
 var icono_alarma: TextureRect
 var etq_alarma: Label
 var boton_sonido: TextureButton
+var boton_ayuda: TextureButton
 var tex_tierra: Texture2D = Estilo.icono("tierra")      # guardadas aquí para que no se liberen de la memoria
 var tex_luna: Texture2D = Estilo.icono("luna")
 var tex_nave: Texture2D = Estilo.icono("orion_mini")
@@ -73,7 +94,7 @@ var panel_config: PanelContainer
 var etq_consejo: Label
 var botones_orden: Dictionary = {}    # grupo -> {opcion -> Button}
 var nombres_orden: Dictionary = {}    # grupo -> Label con el nombre de la opción elegida
-var pistas_orden: Dictionary = {}     # grupo -> Label con lo que hace
+var cajas_efecto: Dictionary = {}     # grupo -> VBoxContainer con lo bueno y lo malo de la opción elegida
 var seleccion: Dictionary = {"racion": "completa", "instrumentos": "basicos", "higiene": "normal"}
 var panel_central: PanelContainer
 var cabecera: VBoxContainer
@@ -84,6 +105,7 @@ var barra_tiempo: ProgressBar
 var etq_tiempo: Label
 var icono_reloj: TextureRect
 var minijuego: Control
+var ultimo_minijuego: String = ""
 
 # --- Capas encima de todo ---
 var capa_flotante: Control
@@ -95,6 +117,13 @@ var velo_dia: ColorRect
 var etq_velo_dia: Label
 var etq_velo_acto: Label
 var pausa: Control
+var guia: Control
+var recorrido: Control
+var recorrido_caja: PanelContainer
+var recorrido_titulo: Label
+var recorrido_texto: Label
+var recorrido_boton: Button
+var recorrido_paso: int = 0
 
 # --- Estado de la pantalla ---
 var fase: String = "config"
@@ -129,6 +158,8 @@ func _ready() -> void:
 	_actualizar_espacio(0.0)
 	_mostrar_config()
 	Estilo.aparecer(self, 0.6)
+	if GameManager.dia_actual == 1 and not recorrido_visto:
+		_abrir_recorrido()
 
 # ===============================================================
 # CONSTRUCCIÓN DE LA PANTALLA
@@ -196,7 +227,19 @@ func _construir_hud() -> void:
 func _subtitulo(texto: String, color: Color = Estilo.C_CIAN) -> Label:
 	return Estilo.nuevo_texto(texto, 16, color)
 
-# --- Barra superior: día, recursos vitales, mapa del viaje y alarma ---
+func _boton_icono(icono: String, ayuda: String) -> TextureButton:
+	var b = TextureButton.new()
+	b.texture_normal = Estilo.icono(icono)
+	b.ignore_texture_size = true
+	b.stretch_mode = TextureButton.STRETCH_SCALE
+	b.custom_minimum_size = Vector2(40, 40)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.tooltip_text = ayuda
+	b.focus_mode = Control.FOCUS_NONE
+	Estilo.animar_hover(b, 1.12)
+	return b
+
+# --- Barra superior: día, recursos vitales, mapa del viaje, alarma y ayuda ---
 func _construir_barra_superior() -> PanelContainer:
 	var p: PanelContainer = Estilo.nuevo_panel(Estilo.C_PANEL, Estilo.C_BORDE, 8)
 	var h = HBoxContainer.new()
@@ -217,7 +260,7 @@ func _construir_barra_superior() -> PanelContainer:
 
 	trayectoria = Control.new()
 	trayectoria.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	trayectoria.custom_minimum_size = Vector2(200, 48)
+	trayectoria.custom_minimum_size = Vector2(180, 48)
 	trayectoria.tooltip_text = "Mapa del viaje: Tierra - Luna - Tierra"
 	trayectoria.draw.connect(_dibujar_trayectoria)
 	h.add_child(trayectoria)
@@ -233,12 +276,10 @@ func _construir_barra_superior() -> PanelContainer:
 	etq_alarma.custom_minimum_size = Vector2(22, 0)
 	caja_alarma.add_child(etq_alarma)
 
-	boton_sonido = TextureButton.new()
-	boton_sonido.ignore_texture_size = true
-	boton_sonido.stretch_mode = TextureButton.STRETCH_SCALE
-	boton_sonido.custom_minimum_size = Vector2(40, 40)
-	boton_sonido.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	boton_sonido.tooltip_text = "Activar o silenciar el sonido"
+	boton_ayuda = _boton_icono("ayuda", "Guía: qué significa cada cosa")
+	boton_ayuda.pressed.connect(_abrir_guia)
+	h.add_child(boton_ayuda)
+	boton_sonido = _boton_icono("sonido_on", "Activar o silenciar el sonido")
 	boton_sonido.pressed.connect(_on_sonido)
 	h.add_child(boton_sonido)
 	_pintar_sonido()
@@ -256,9 +297,9 @@ func _medidor(clave: String, nombre: String) -> HBoxContainer:
 	var h = HBoxContainer.new()
 	h.add_theme_constant_override("separation", 6)
 	h.mouse_filter = Control.MOUSE_FILTER_STOP
-	h.tooltip_text = "%s\nSi llega a 0, la misión termina. Por debajo de %d %% salta la alarma." % [nombre, int(GameManager.UMBRAL_ALARMA)]
+	h.tooltip_text = Idioma.t("%s\nSi llega a 0, la misión termina. Por debajo de %d %% salta la alarma.") % [Idioma.t(nombre), int(GameManager.UMBRAL_ALARMA)]
 	if clave == "comida":
-		h.tooltip_text = "Comida\nSin comida, la tripulación pierde salud cada día. Por debajo de %d %% salta la alarma." % int(GameManager.UMBRAL_ALARMA)
+		h.tooltip_text = Idioma.t("Comida\nSin comida, la tripulación pierde salud cada día. Por debajo de %d %% salta la alarma.") % int(GameManager.UMBRAL_ALARMA)
 	var ic: TextureRect = Estilo.nuevo_icono(clave, 40)
 	h.add_child(ic)
 	var v = VBoxContainer.new()
@@ -462,7 +503,7 @@ func _construir_centro() -> VBoxContainer:
 	v.add_child(pie)
 	return centro
 
-# Órdenes del día: tres mosaicos con botones de solo icono
+# Órdenes del día: tres mosaicos con botones de solo icono y, debajo, lo bueno y lo malo de cada elección
 func _construir_config() -> PanelContainer:
 	var p: PanelContainer = Estilo.nuevo_panel(Color(0.03, 0.05, 0.11, 0.93), Estilo.C_CIAN, 12)
 	p.custom_minimum_size = Vector2(ANCHO_PANEL, 0)
@@ -470,7 +511,7 @@ func _construir_config() -> PanelContainer:
 	var v = VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	p.add_child(v)
-	etq_consejo = Estilo.nuevo_texto("Elige las órdenes de hoy. Gastar menos cuida las reservas, pero sube el hambre o el estrés.", 16, Estilo.C_TEXTO_SUAVE)
+	etq_consejo = Estilo.nuevo_texto("Elige las órdenes de hoy. En verde lo que ganas y en rojo lo que te cuesta.", 16, Estilo.C_TEXTO_SUAVE)
 	etq_consejo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(etq_consejo)
 	var fila = HBoxContainer.new()
@@ -519,13 +560,14 @@ func _mosaico_orden(grupo: String, titulo: String, opciones: Array, prefijo_icon
 	nombre.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(nombre)
 	nombres_orden[grupo] = nombre
-	var pista: Label = Estilo.nuevo_texto("", 16, Estilo.C_VERDE)
-	pista.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(pista)
-	pistas_orden[grupo] = pista
+	var efectos = VBoxContainer.new()
+	efectos.add_theme_constant_override("separation", 0)
+	efectos.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(efectos)
+	cajas_efecto[grupo] = efectos
 	return p
 
-# --- Capas: números flotantes, aviso de decisión, cambio de día y pausa ---
+# --- Capas: números flotantes, aviso de decisión, cambio de día, pausa, guía y recorrido ---
 func _construir_capas() -> void:
 	capa_flotante = Control.new()
 	capa_flotante.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -575,6 +617,35 @@ func _construir_capas() -> void:
 	etq_velo_acto.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(etq_velo_acto)
 
+	# Recorrido guiado (señala una zona de la pantalla y la explica)
+	recorrido = Control.new()
+	recorrido.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	recorrido.mouse_filter = Control.MOUSE_FILTER_STOP
+	recorrido.visible = false
+	recorrido.draw.connect(_dibujar_recorrido)
+	add_child(recorrido)
+	recorrido_caja = Estilo.nuevo_panel(Color(0.03, 0.05, 0.11, 0.98), Estilo.C_AMARILLO, 16)
+	recorrido_caja.custom_minimum_size = Vector2(780, 0)
+	recorrido.add_child(recorrido_caja)
+	var vr = VBoxContainer.new()
+	vr.add_theme_constant_override("separation", 8)
+	recorrido_caja.add_child(vr)
+	recorrido_titulo = Estilo.nuevo_texto("", 32, Estilo.C_AMARILLO)
+	vr.add_child(recorrido_titulo)
+	recorrido_texto = Estilo.nuevo_texto("", 16, Estilo.C_TEXTO)
+	vr.add_child(recorrido_texto)
+	var fila_r = HBoxContainer.new()
+	fila_r.add_theme_constant_override("separation", 12)
+	fila_r.alignment = BoxContainer.ALIGNMENT_END
+	vr.add_child(fila_r)
+	var saltar: Button = Estilo.nuevo_boton("SALTAR", 16, 150, 48)
+	Estilo.estilo_holo(saltar)
+	saltar.pressed.connect(_cerrar_recorrido)
+	fila_r.add_child(saltar)
+	recorrido_boton = Estilo.nuevo_boton("SIGUIENTE", 24, 300, 48)
+	recorrido_boton.pressed.connect(_siguiente_recorrido)
+	fila_r.add_child(recorrido_boton)
+
 	pausa = Control.new()
 	pausa.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	pausa.visible = false
@@ -600,9 +671,113 @@ func _construir_capas() -> void:
 	var seguir: Button = Estilo.nuevo_boton("SEGUIR JUGANDO", 24, 380, 56)
 	seguir.pressed.connect(_alternar_pausa)
 	v2.add_child(seguir)
+	var ayuda: Button = Estilo.nuevo_boton("VER LA GUÍA", 24, 380, 56)
+	ayuda.pressed.connect(func():
+		pausa.visible = false
+		_abrir_guia())
+	v2.add_child(ayuda)
 	var salir: Button = Estilo.nuevo_boton("SALIR AL MENÚ", 24, 380, 56)
 	salir.pressed.connect(func(): Estilo.cambiar_escena(self, "res://scenes/main_menu.tscn"))
 	v2.add_child(salir)
+
+	guia = Guia.new()
+	add_child(guia)
+
+# ===============================================================
+# AYUDAS: GUÍA Y RECORRIDO DEL PRIMER DÍA
+# ===============================================================
+func _abrir_guia() -> void:
+	if fase == "transicion" or fase == "saliendo":
+		return
+	guia.abrir()
+
+func _en_espera() -> bool:
+	# El reloj y los avances automáticos se detienen mientras hay una ventana abierta encima
+	return pausa.visible or guia.visible or recorrido.visible
+
+func _abrir_recorrido() -> void:
+	recorrido_paso = 0
+	recorrido.visible = true
+	recorrido.modulate.a = 0.0
+	_pintar_recorrido()
+	# Espera a que la pantalla termine de acomodarse antes de señalar
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if is_instance_valid(recorrido) and recorrido.visible:
+		create_tween().tween_property(recorrido, "modulate:a", 1.0, 0.3).set_delay(0.5)
+
+func _pintar_recorrido() -> void:
+	var paso: Array = PASOS_RECORRIDO[recorrido_paso]
+	recorrido_titulo.text = "%d/%d  %s" % [recorrido_paso + 1, PASOS_RECORRIDO.size(), Idioma.t(String(paso[0]))]
+	recorrido_texto.text = String(paso[1])
+	recorrido_boton.text = "¡A JUGAR!" if recorrido_paso == PASOS_RECORRIDO.size() - 1 else "SIGUIENTE"
+	recorrido_boton.grab_focus.call_deferred()
+	recorrido.queue_redraw()
+
+func _siguiente_recorrido() -> void:
+	if recorrido_paso >= PASOS_RECORRIDO.size() - 1:
+		_cerrar_recorrido()
+		return
+	recorrido_paso += 1
+	_pintar_recorrido()
+
+func _cerrar_recorrido() -> void:
+	recorrido_visto = true
+	recorrido.visible = false
+	var iniciar: Button = panel_config.find_child("BotonIniciar", true, false)
+	if iniciar != null and fase == "config":
+		iniciar.grab_focus.call_deferred()
+
+func _union(nodos: Array) -> Rect2:
+	var r: Rect2 = Rect2()
+	var primero: bool = true
+	for n in nodos:
+		var rect: Rect2 = n.get_global_rect()
+		r = rect if primero else r.merge(rect)
+		primero = false
+	return r
+
+# Zona de la pantalla que se señala en cada paso del recorrido
+func _rect_recorrido(clave: String) -> Rect2:
+	match clave:
+		"recursos":
+			var cajas: Array = []
+			for k in medidores:
+				cajas.append(medidores[k]["caja"])
+			return _union(cajas).grow(8.0)
+		"sistemas":
+			var paneles: Array = []
+			for k in pastillas:
+				paneles.append(pastillas[k]["panel"])
+			return _union(paneles).grow(6.0)
+		"tripulacion":
+			var todas: Array = []
+			for k in tarjetas:
+				todas.append(tarjetas[k]["panel"])
+			return _union(todas).grow(6.0)
+		"ordenes":
+			return panel_config.get_global_rect().grow(4.0)
+		"ayuda":
+			return boton_ayuda.get_global_rect().grow(10.0)
+	return Rect2()
+
+func _dibujar_recorrido() -> void:
+	var zona: Rect2 = _rect_recorrido(String(PASOS_RECORRIDO[recorrido_paso][2]))
+	var total: Vector2 = recorrido.size
+	var sombra: Color = Color(0.0, 0.0, 0.02, 0.80)
+	# Cuatro franjas oscuras alrededor de la zona señalada (la zona queda a la vista)
+	recorrido.draw_rect(Rect2(0, 0, total.x, zona.position.y), sombra)
+	recorrido.draw_rect(Rect2(0, zona.end.y, total.x, total.y - zona.end.y), sombra)
+	recorrido.draw_rect(Rect2(0, zona.position.y, zona.position.x, zona.size.y), sombra)
+	recorrido.draw_rect(Rect2(zona.end.x, zona.position.y, total.x - zona.end.x, zona.size.y), sombra)
+	var pulso: float = 3.0 + 2.0 * (0.5 + 0.5 * sin(_t * 5.0))
+	recorrido.draw_rect(zona.grow(pulso), Estilo.C_AMARILLO, false, 4.0)
+	# La caja de texto se pone donde no tape la zona: debajo si la zona está arriba, y al revés
+	var alto: float = recorrido_caja.size.y
+	var y: float = zona.end.y + 26.0
+	if zona.get_center().y > total.y * 0.5:
+		y = zona.position.y - alto - 26.0
+	recorrido_caja.position = Vector2((total.x - recorrido_caja.size.x) * 0.5, clampf(y, 20.0, total.y - alto - 20.0))
 
 # ===============================================================
 # TEXTOS DEL VIAJE
@@ -648,7 +823,7 @@ func _mostrar_config() -> void:
 	var hito: Dictionary = Eventos.hito_del_dia(dia)
 	banner.visible = not hito.is_empty()
 	if not hito.is_empty():
-		etq_banner.text = "HOY: " + String(hito["tema"]).to_upper()
+		etq_banner.text = Idioma.t("HOY: ") + Idioma.t(String(hito["tema"])).to_upper()
 
 	seleccion["racion"] = GameManager.racion
 	seleccion["instrumentos"] = GameManager.instrumentos
@@ -659,7 +834,10 @@ func _mostrar_config() -> void:
 			b.set_pressed_no_signal(String(op) == String(seleccion[grupo]))
 			if grupo == "instrumentos":
 				b.disabled = GameManager.instrumentos_bloqueados
-			b.tooltip_text = "%s\n%s" % [NOMBRE_ORDEN[op], _efecto_orden(String(grupo), String(op))]
+			var lineas: Array = [Idioma.t(String(NOMBRE_ORDEN[op]))]
+			for e in _efectos_orden(String(grupo), String(op)):
+				lineas.append(String(e[1]))
+			b.tooltip_text = "\n".join(lineas)
 		_pintar_orden(String(grupo))
 	etq_consejo.visible = (dia == 1)
 
@@ -676,29 +854,64 @@ func _on_orden(grupo: String, opcion: String) -> void:
 	seleccion[grupo] = opcion
 	_pintar_orden(grupo)
 
-# Qué hace cada orden, con los números de GameManager
-func _efecto_orden(grupo: String, op: String) -> String:
+# Lo bueno y lo malo de cada orden, con los números de GameManager.
+# Devuelve una lista de [icono, texto, tipo]; tipo es "bueno" (verde), "malo" (rojo) o "neutro" (gris).
+func _efectos_orden(grupo: String, op: String) -> Array:
+	var lista: Array = []
 	match grupo:
 		"racion":
-			return "Comida x%s  ·  Hambre %s al día" % [
-				str(GameManager.COMIDA_RACION[op]).replace(".", ","), GameManager.signo(float(GameManager.HAMBRE_RACION[op]))]
+			var mult: float = float(GameManager.COMIDA_RACION[op])
+			var hambre: float = float(GameManager.HAMBRE_RACION[op])
+			if mult >= 1.0:
+				lista.append(["comida", Idioma.t("Gasto normal de comida"), "neutro"])
+			else:
+				lista.append(["comida", Idioma.t("Ahorras %d %% de comida") % roundi((1.0 - mult) * 100.0), "bueno"])
+			if hambre > 0.0:
+				lista.append(["hambre", Idioma.t("El hambre sube %s al día") % Idioma.num(hambre), "malo"])
+			else:
+				lista.append(["hambre", Idioma.t("El hambre baja %s al día") % Idioma.num(absf(hambre)), "bueno"])
 		"instrumentos":
 			if GameManager.instrumentos_bloqueados:
-				return "Carga científica soltada: ya no funcionan"
-			if op == "apagados":
-				return "Sin gasto, pero la ciencia no avanza"
-			return "Ciencia +%s  ·  Electricidad -%s al día" % [
-				str(GameManager.CIENCIA_DIA[op]).replace(".", ","), str(GameManager.ELEC_INSTRUMENTOS[op]).replace(".", ",")]
+				lista.append(["ciencia", Idioma.t("Carga soltada: no funcionan"), "malo"])
+			elif op == "apagados":
+				lista.append(["ciencia", Idioma.t("La ciencia no avanza"), "malo"])
+				lista.append(["electricidad", Idioma.t("No gastan electricidad"), "bueno"])
+			else:
+				lista.append(["ciencia", Idioma.t("La ciencia sube %s al día") % Idioma.num(float(GameManager.CIENCIA_DIA[op])), "bueno"])
+				lista.append(["electricidad", Idioma.t("Electricidad baja %s al día") % Idioma.num(float(GameManager.ELEC_INSTRUMENTOS[op])), "malo"])
+				lista.append(["datos", Idioma.t("Los datos suben %s al día") % Idioma.num(float(GameManager.DATOS_DIA[op])), "malo"])
 		"higiene":
 			if op == "normal":
-				return "Consumo de agua normal"
-			return "Agua -15 %%  ·  Estrés +%d al día" % int(GameManager.ESTRES_AISLAMIENTO_HIGIENE)
-	return ""
+				lista.append(["agua", Idioma.t("Gasto normal de agua"), "neutro"])
+				lista.append(["estres", Idioma.t("Sin estrés extra"), "bueno"])
+			else:
+				lista.append(["agua", Idioma.t("Ahorras 15 % de agua"), "bueno"])
+				lista.append(["estres", Idioma.t("El estrés sube %s al día") % Idioma.num(GameManager.ESTRES_AISLAMIENTO_HIGIENE), "malo"])
+	return lista
 
 func _pintar_orden(grupo: String) -> void:
 	var op: String = String(seleccion[grupo])
 	nombres_orden[grupo].text = String(NOMBRE_ORDEN[op])
-	pistas_orden[grupo].text = _efecto_orden(grupo, op)
+	var caja: VBoxContainer = cajas_efecto[grupo]
+	_limpiar(caja)
+	for e in _efectos_orden(grupo, op):
+		var tipo: String = String(e[2])
+		var color: Color = Estilo.C_TEXTO_SUAVE
+		if tipo == "bueno":
+			color = Estilo.C_VERDE
+		elif tipo == "malo":
+			color = Estilo.C_ROJO
+		var fila = HBoxContainer.new()
+		fila.add_theme_constant_override("separation", 6)
+		caja.add_child(fila)
+		# Marca verde = te conviene; marca roja = te cuesta
+		var marca: TextureRect = Estilo.nuevo_icono("resultado_bueno" if tipo == "bueno" else "resultado_malo", 20)
+		marca.modulate.a = 0.0 if tipo == "neutro" else 1.0
+		fila.add_child(marca)
+		fila.add_child(Estilo.nuevo_icono(String(e[0]), 24))
+		var l: Label = Estilo.nuevo_texto(String(e[1]), 16, color, false)
+		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		fila.add_child(l)
 
 func _on_iniciar_dia() -> void:
 	if fase != "config":
@@ -720,7 +933,7 @@ func _mostrar_registro(lineas: Array, antes: Dictionary, despues: Dictionary) ->
 	fase = "registro"
 	_paso_id += 1
 	_abrir_panel(Estilo.C_CIAN)
-	var titulo: Label = Estilo.nuevo_texto("CONSUMO DEL DÍA %d" % GameManager.dia_actual, 24, Estilo.C_AMARILLO)
+	var titulo: Label = Estilo.nuevo_texto(Idioma.t("CONSUMO DEL DÍA %d") % GameManager.dia_actual, 24, Estilo.C_AMARILLO)
 	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cabecera.add_child(titulo)
 	_agregar_fichas(cuerpo, _fichas_cambios(antes, despues))
@@ -738,7 +951,7 @@ func _mostrar_registro(lineas: Array, antes: Dictionary, despues: Dictionary) ->
 		elif texto.contains("ha muerto"):
 			icono = "sin_senal"
 			color = Estilo.C_ROJO
-		cuerpo.add_child(_aviso(texto, color, icono))
+		cuerpo.add_child(_aviso(Idioma.dinamico(texto), color, icono))
 	if GameManager.hay_final_inmediato():
 		siguiente = "final"
 		_boton_pie("VER EL DESENLACE")
@@ -751,7 +964,7 @@ func _mostrar_registro(lineas: Array, antes: Dictionary, despues: Dictionary) ->
 			var espera: Tween = create_tween()
 			espera.tween_interval(2.4)
 			espera.tween_callback(func():
-				if fase == "registro" and mi_paso == _paso_id and not pausa.visible:
+				if fase == "registro" and mi_paso == _paso_id and not _en_espera():
 					_on_continuar())
 	_cerrar_panel()
 
@@ -786,7 +999,7 @@ func _anunciar_decision() -> void:
 	else:
 		Sonido.efecto("aviso")
 	anuncio_titulo.text = titulo
-	anuncio_sub.text = String(d["tema"]).to_upper()
+	anuncio_sub.text = Idioma.t(String(d["tema"])).to_upper()
 	anuncio_banda.color = Color(color.darkened(0.6), 0.94)
 	anuncio_titulo.add_theme_color_override("font_color", color.lerp(Color(1, 1, 1), 0.35))
 	anuncio.visible = true
@@ -837,15 +1050,15 @@ func _mostrar_decision() -> void:
 	if categoria == "nave":
 		for i in int(d["gravedad"]):
 			linea.add_child(Estilo.nuevo_icono("alarma", 24))
-	var tema: Label = Estilo.nuevo_texto(String(d["tema"]).to_upper(), 24, Estilo.C_TEXTO)
+	var tema: Label = Estilo.nuevo_texto(Idioma.t(String(d["tema"])).to_upper(), 24, Estilo.C_TEXTO)
 	tema.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	linea.add_child(tema)
-	var cuenta: Label = Estilo.nuevo_texto("%d DE 2" % numero_decision, 16, Estilo.C_TEXTO_SUAVE, false)
+	var cuenta: Label = Estilo.nuevo_texto(Idioma.t("%d DE 2") % numero_decision, 16, Estilo.C_TEXTO_SUAVE, false)
 	cuenta.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	linea.add_child(cuenta)
 
 	# --- Temporizador (el estrés de Elena puede recortarlo) ---
-	tiempo_total = maxf(5.0, float(d["tiempo_s"]) - GameManager.penal_tiempo)
+	tiempo_total = maxf(5.0, float(d["tiempo_s"]) + SEGUNDOS_EXTRA - GameManager.penal_tiempo)
 	GameManager.penal_tiempo = 0.0
 	tiempo_restante = tiempo_total
 	_ultimo_tic = -1
@@ -958,23 +1171,24 @@ func _tarjeta_opcion(letra: String, opcion: Dictionary, indice: int, color: Colo
 	return p
 
 func _on_opcion(indice: int) -> void:
-	if fase != "decision" or pausa.visible:
+	if fase != "decision" or _en_espera():
 		return
 	Sonido.clic()
 	var opcion: Dictionary = decision_actual["opciones"][indice]
-	# En una emergencia, un procedimiento válido se ejecuta a mano: minijuego de reparación
-	if String(decision_actual["categoria"]) == "nave" and not opcion.get("trampa", false):
+	# Un procedimiento válido se ejecuta a mano: minijuego (las trampas y los momentos clave no tienen)
+	if CON_MINIJUEGO.has(String(decision_actual["categoria"])) and not opcion.get("trampa", false):
 		_iniciar_minijuego(indice)
 	else:
 		_resolver(indice, false)
 
 # ===============================================================
-# FASE 3b: MINIJUEGO DE REPARACIÓN MANUAL
+# FASE 3b: MINIJUEGO (TAREA MANUAL)
 # ===============================================================
 func _iniciar_minijuego(indice: int) -> void:
 	fase = "minijuego"
 	reloj_activo = false
-	var tipo: String = Minijuego.tipo_para(String(decision_actual["tema"]))
+	var tipo: String = Minijuego.elegir(String(decision_actual["tema"]), ultimo_minijuego)
+	ultimo_minijuego = tipo
 	var opcion: Dictionary = decision_actual["opciones"][indice]
 	_abrir_panel(Estilo.C_AMARILLO)
 	var h = HBoxContainer.new()
@@ -985,13 +1199,13 @@ func _iniciar_minijuego(indice: int) -> void:
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_theme_constant_override("separation", 0)
 	h.add_child(v)
-	v.add_child(Estilo.nuevo_texto("REPARACIÓN MANUAL: " + String(Minijuego.TITULOS[tipo]), 32, Estilo.C_AMARILLO))
+	v.add_child(Estilo.nuevo_texto(Idioma.t("TAREA MANUAL: ") + Idioma.t(String(Minijuego.TITULOS[tipo])), 32, Estilo.C_AMARILLO))
 	v.add_child(Estilo.nuevo_texto(String(Minijuego.INSTRUCCIONES[tipo]), 16, Estilo.C_TEXTO))
 	minijuego = Minijuego.new()
 	cuerpo.add_child(minijuego)
 	minijuego.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	minijuego.terminado.connect(_on_minijuego_terminado.bind(indice))
-	var nota: Label = Estilo.nuevo_texto("Procedimiento: " + String(opcion["texto"]), 16, Estilo.C_TEXTO_SUAVE)
+	var nota: Label = Estilo.nuevo_texto(Idioma.t("Procedimiento: ") + Idioma.t(String(opcion["texto"])), 16, Estilo.C_TEXTO_SUAVE)
 	nota.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pie.add_child(nota)
 	await _cerrar_panel()
@@ -1037,23 +1251,23 @@ func _mostrar_feedback(res: Dictionary, antes: Dictionary, despues: Dictionary) 
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_theme_constant_override("separation", -2)
 	h.add_child(v)
-	v.add_child(Estilo.nuevo_texto("RESULTADO: " + String(TIER_TEXTO[tier]), 32, color))
+	v.add_child(Estilo.nuevo_texto(Idioma.t("RESULTADO: ") + Idioma.t(String(TIER_TEXTO[tier])), 32, color))
 	v.add_child(Estilo.nuevo_texto(String(opcion["texto"]), 16, Estilo.C_TEXTO))
 
 	if String(res["nota"]) != "":
-		cuerpo.add_child(_aviso(String(res["nota"]), Estilo.C_NARANJA, "reloj"))
+		cuerpo.add_child(_aviso(Idioma.dinamico(String(res["nota"])), Estilo.C_NARANJA, "reloj"))
 	if not is_nan(nota_reparacion):
-		var texto_rep: String = "Tu reparación manual falló y empeoró el resultado."
+		var texto_rep: String = "Tu tarea manual salió mal y empeoró el resultado."
 		var color_rep: Color = Estilo.C_ROJO
 		if nota_reparacion >= 0.6:
-			texto_rep = "Tu reparación manual fue perfecta y ayudó al resultado."
+			texto_rep = "Tu tarea manual salió perfecta y ayudó al resultado."
 			color_rep = Estilo.C_VERDE
 		elif nota_reparacion >= 0.0:
-			texto_rep = "Tu reparación manual fue aceptable."
+			texto_rep = "Tu tarea manual salió aceptable."
 			color_rep = Estilo.C_AMARILLO
 		cuerpo.add_child(_aviso(texto_rep, color_rep, "herramienta"))
 	for m in res["muertes"]:
-		cuerpo.add_child(_aviso(String(m), Estilo.C_ROJO, "sin_senal"))
+		cuerpo.add_child(_aviso(Idioma.dinamico(String(m)), Estilo.C_ROJO, "sin_senal"))
 
 	var fichas: Array = _fichas_cambios(antes, despues)
 	if fichas.is_empty():
@@ -1078,7 +1292,7 @@ func _mostrar_feedback(res: Dictionary, antes: Dictionary, despues: Dictionary) 
 	if not res["factores"].is_empty():
 		analisis.add_child(_subtitulo("FACTORES QUE PESARON"))
 		for f in res["factores"]:
-			analisis.add_child(Estilo.nuevo_texto("- " + String(f), 16, Estilo.C_TEXTO_SUAVE))
+			analisis.add_child(Estilo.nuevo_texto("- " + Idioma.dinamico(String(f)), 16, Estilo.C_TEXTO_SUAVE))
 	if not res["alternativas"].is_empty():
 		analisis.add_child(_subtitulo("QUÉ HABRÍA PASADO CON LAS OTRAS OPCIONES"))
 		for a in res["alternativas"]:
@@ -1121,10 +1335,16 @@ func _boton_plegable(texto: String, icono: String, bloque: Control, color: Color
 # Una alternativa llega como "texto: TIER (efectos)". Se pinta con el color de su nivel.
 func _linea_alternativa(texto: String) -> Label:
 	var color: Color = Estilo.C_TEXTO_SUAVE
+	var mostrado: String = texto
 	for tier in TIER_TEXTO:
-		if texto.contains(": %s (" % TIER_TEXTO[tier]):
-			color = Estilo.COLOR_RESULTADO[tier].lerp(Estilo.C_TEXTO, 0.35)
-	return Estilo.nuevo_texto("- " + texto, 16, color)
+		var marca: String = ": %s (" % TIER_TEXTO[tier]
+		var pos: int = texto.find(marca)
+		if pos == -1:
+			continue
+		color = Estilo.COLOR_RESULTADO[tier].lerp(Estilo.C_TEXTO, 0.35)
+		if Idioma.es_ingles():
+			mostrado = "%s: %s (%s" % [Idioma.t(texto.substr(0, pos)), Idioma.t(String(TIER_TEXTO[tier])), Idioma.dinamico(texto.substr(pos + marca.length()))]
+	return Estilo.nuevo_texto("- " + mostrado, 16, color)
 
 func _tarjeta_memo(memo: Dictionary, fuente_opcion: String) -> PanelContainer:
 	var p: PanelContainer = Estilo.nuevo_panel(Color(0.05, 0.12, 0.10, 0.95), Estilo.C_VERDE, 10)
@@ -1139,14 +1359,15 @@ func _tarjeta_memo(memo: Dictionary, fuente_opcion: String) -> PanelContainer:
 	v.add_theme_constant_override("separation", 4)
 	h.add_child(v)
 	var texto: String = String(memo["texto"])
+	var titulo: String = Idioma.t(String(memo["titulo"])).to_upper()
 	if texto != "":
-		v.add_child(Estilo.nuevo_texto("MEMO NASA: " + String(memo["titulo"]), 16, Estilo.C_VERDE))
+		v.add_child(Estilo.nuevo_texto(Idioma.t("MEMO NASA: ") + titulo, 16, Estilo.C_VERDE))
 		v.add_child(Estilo.nuevo_texto(texto, 16, Estilo.C_TEXTO))
 	else:
-		v.add_child(Estilo.nuevo_texto("PARA SABER MÁS: " + String(memo["titulo"]), 16, Estilo.C_VERDE))
+		v.add_child(Estilo.nuevo_texto(Idioma.t("PARA SABER MÁS: ") + titulo, 16, Estilo.C_VERDE))
 	var url: String = fuente_opcion if fuente_opcion != "" else String(memo["url"])
-	var nombre: String = "Fuente NASA de esta decisión" if fuente_opcion != "" else String(memo["fuente"])
-	var enlace: Button = Estilo.nuevo_boton("Abrir: " + nombre, 16, 0, 36)
+	var nombre: String = Idioma.t("Fuente NASA de esta decisión") if fuente_opcion != "" else String(memo["fuente"])
+	var enlace: Button = Estilo.nuevo_boton(Idioma.t("Abrir: ") + nombre, 16, 0, 36)
 	Estilo.estilo_holo(enlace, Estilo.C_VERDE)
 	enlace.focus_mode = Control.FOCUS_NONE
 	enlace.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -1179,7 +1400,7 @@ func _cerrar_dia() -> void:
 	reloj_activo = false
 	var ahora: Dictionary = GameManager.instantanea()
 	_abrir_panel(Estilo.C_CIAN)
-	var titulo: Label = Estilo.nuevo_texto("FIN DEL DÍA %d" % GameManager.dia_actual, 32, Estilo.C_AMARILLO)
+	var titulo: Label = Estilo.nuevo_texto(Idioma.t("FIN DEL DÍA %d") % GameManager.dia_actual, 32, Estilo.C_AMARILLO)
 	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cabecera.add_child(titulo)
 	var fichas: Array = _fichas_cambios(snap_dia, ahora)
@@ -1188,14 +1409,14 @@ func _cerrar_dia() -> void:
 	else:
 		_agregar_fichas(cuerpo, fichas)
 	for a in GameManager.alarmas():
-		cuerpo.add_child(_aviso("ALARMA: " + String(a), Estilo.C_ROJO, "alarma"))
+		cuerpo.add_child(_aviso(Idioma.t("ALARMA: ") + Idioma.dinamico(String(a)), Estilo.C_ROJO, "alarma"))
 	GameManager.cerrar_dia()
 	if GameManager.hay_final_inmediato() or GameManager.dia_actual >= GameManager.DIAS_TOTALES:
 		siguiente = "final"
 		_boton_pie("VER EL DESENLACE")
 	else:
 		siguiente = "dia"
-		_boton_pie("IR AL DÍA %d" % (GameManager.dia_actual + 1))
+		_boton_pie(Idioma.t("IR AL DÍA %d") % (GameManager.dia_actual + 1))
 	actualizar_hud(true)
 	_cerrar_panel()
 
@@ -1204,8 +1425,8 @@ func _siguiente_dia() -> void:
 		return
 	fase = "transicion"
 	var nuevo: int = GameManager.dia_actual + 1
-	etq_velo_dia.text = "DÍA %d" % nuevo
-	etq_velo_acto.text = "%s  ·  %s" % [_acto(nuevo), _tramo(nuevo)]
+	etq_velo_dia.text = Idioma.t("DÍA %d") % nuevo
+	etq_velo_acto.text = "%s  ·  %s" % [Idioma.t(_acto(nuevo)), Idioma.t(_tramo(nuevo))]
 	velo_dia.modulate.a = 0.0
 	velo_dia.visible = true
 	var tw: Tween = create_tween()
@@ -1304,10 +1525,12 @@ func _agregar_fichas(padre: Control, fichas: Array) -> void:
 		Estilo.saltar(f, 0.10 + 0.05 * float(n), 0.7)
 		n += 1
 
-# Ficha de color: icono + cuánto cambió. El nombre solo aparece cuando el icono no basta.
-func _ficha(icono: String, texto: String, valor: String, color: Color, ayuda: String, color_texto: Color = Estilo.C_TEXTO) -> PanelContainer:
+# Ficha de color: icono + flecha (sube o baja) + cuánto cambió.
+# Verde = te conviene, rojo = te perjudica. El nombre solo aparece cuando el icono no basta.
+func _ficha(icono: String, texto: String, cambio: float, unidad: String, color: Color, ayuda: String, color_texto: Color = Estilo.C_TEXTO) -> PanelContainer:
+	var valor: String = GameManager.signo(cambio) + unidad
 	var p: PanelContainer = Estilo.nuevo_panel(Color(color, 0.14), Color(color, 0.85), 6)
-	p.tooltip_text = "%s %s" % [ayuda, valor]
+	p.tooltip_text = "%s: %s %s" % [ayuda, Idioma.t("sube") if cambio > 0.0 else Idioma.t("baja"), valor.trim_prefix("+").trim_prefix("-")]
 	var h = HBoxContainer.new()
 	h.add_theme_constant_override("separation", 6)
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1317,6 +1540,9 @@ func _ficha(icono: String, texto: String, valor: String, color: Color, ayuda: St
 		var l: Label = Estilo.nuevo_texto(texto, 16, color_texto, false)
 		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		h.add_child(l)
+	var flecha: TextureRect = Estilo.nuevo_icono("flecha_sube" if cambio > 0.0 else "flecha_baja", 20)
+	flecha.modulate = color
+	h.add_child(flecha)
 	var v: Label = Estilo.nuevo_texto(valor, 24, color, false)
 	v.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(v)
@@ -1334,8 +1560,8 @@ func _fichas_cambios(antes: Dictionary, despues: Dictionary) -> Array:
 			color = Estilo.C_VERDE if d < 0.0 else Estilo.C_AMARILLO
 		elif clave == "temperatura":
 			color = Estilo.C_AMARILLO
-		var nombre: String = String(GameManager.ETIQUETAS.get(clave, clave)).replace(" (°C)", "")
-		lista.append(_ficha(clave, String(NOMBRE_FICHA.get(clave, "")), GameManager.signo(d) + String(UNIDAD.get(clave, " %")), color, nombre))
+		var nombre: String = Idioma.t(String(GameManager.ETIQUETAS.get(clave, clave)).replace(" (°C)", ""))
+		lista.append(_ficha(clave, String(NOMBRE_FICHA.get(clave, "")), d, String(UNIDAD.get(clave, " %")), color, nombre))
 	for stat in ["salud", "estres", "hambre", "confianza"]:
 		var deltas: Dictionary = {}
 		for id in GameManager.TRIPULANTES:
@@ -1350,15 +1576,16 @@ func _fichas_cambios(antes: Dictionary, despues: Dictionary) -> Array:
 			if v != valores[0]:
 				iguales = false
 		var sube_es_bueno: bool = (stat == "salud" or stat == "confianza")
+		var nombre_stat: String = Idioma.t(String(ETQ_STAT[stat]))
 		if iguales and deltas.size() >= 2 and deltas.size() == GameManager.vivos().size():
 			var bueno: bool = (float(valores[0]) > 0.0) == sube_es_bueno
-			lista.append(_ficha(stat, "Todos", GameManager.signo(float(valores[0])), Estilo.C_VERDE if bueno else Estilo.C_ROJO,
-				"%s de todos" % ETQ_STAT[stat]))
+			lista.append(_ficha(stat, "Todos", float(valores[0]), "", Estilo.C_VERDE if bueno else Estilo.C_ROJO,
+				Idioma.t("%s de todos") % nombre_stat))
 		else:
 			for id in deltas:
 				var bueno2: bool = (float(deltas[id]) > 0.0) == sube_es_bueno
-				lista.append(_ficha(stat, String(GameManager.NOMBRES_TRIPULANTE[id]), GameManager.signo(float(deltas[id])),
-					Estilo.C_VERDE if bueno2 else Estilo.C_ROJO, "%s de %s" % [ETQ_STAT[stat], GameManager.NOMBRES_TRIPULANTE[id]],
+				lista.append(_ficha(stat, String(GameManager.NOMBRES_TRIPULANTE[id]), float(deltas[id]), "",
+					Estilo.C_VERDE if bueno2 else Estilo.C_ROJO, Idioma.t("%s de %s") % [nombre_stat, GameManager.NOMBRES_TRIPULANTE[id]],
 					Estilo.ACENTO[id].lerp(Color(1, 1, 1), 0.4)))
 	return lista
 
@@ -1367,7 +1594,7 @@ func _fichas_cambios(antes: Dictionary, despues: Dictionary) -> Array:
 # ===============================================================
 func actualizar_hud(animar: bool = true) -> void:
 	var dia: int = GameManager.dia_actual
-	etq_dia.text = "DÍA %d/%d" % [dia, GameManager.DIAS_TOTALES]
+	etq_dia.text = Idioma.t("DÍA %d/%d") % [dia, GameManager.DIAS_TOTALES]
 	etq_tramo.text = _tramo(dia)
 
 	# --- Recursos vitales ---
@@ -1383,43 +1610,43 @@ func actualizar_hud(animar: bool = true) -> void:
 
 	# --- Sistemas ---
 	_pintar_pastilla("integridad", "%d %%" % roundi(GameManager.integridad), Estilo.color_nivel(GameManager.integridad),
-		"Integridad del casco: %d %%\nSi baja de %d %%, el escudo térmico no resiste la reentrada." % [roundi(GameManager.integridad), int(GameManager.INTEGRIDAD_REENTRADA)])
+		Idioma.t("Integridad del casco: %d %%\nBajo 60 %% se escapa oxígeno. Con %d %% o menos, el escudo térmico no resiste la reentrada.") % [roundi(GameManager.integridad), int(GameManager.INTEGRIDAD_REENTRADA)])
 	var meta: int = int(GameManager.CIENCIA_FINAL_BUENO)
 	var color_ciencia: Color = Estilo.C_VERDE if GameManager.ciencia >= float(meta) else Estilo.C_VIOLETA
 	var nota_tope: String = ""
 	if GameManager.ciencia_max < float(meta):
-		nota_tope = "\nOjo: con tu plan no se puede llegar a la meta."
+		nota_tope = Idioma.t("\nOjo: con tu plan no se puede llegar a la meta.")
 	_pintar_pastilla("ciencia", "%d / %d" % [roundi(GameManager.ciencia), meta], color_ciencia,
-		"Progreso científico: %d %%\nMeta del final bueno: %d %%. Tope de tu plan: %d %%.%s" % [roundi(GameManager.ciencia), meta, roundi(GameManager.ciencia_max), nota_tope])
+		Idioma.t("Progreso científico: %d %%\nSube con los instrumentos encendidos. Meta del final bueno: %d %%. Tope de tu plan: %d %%.") % [roundi(GameManager.ciencia), meta, roundi(GameManager.ciencia_max)] + nota_tope)
 	_pintar_pastilla("datos", "%d %%" % roundi(GameManager.datos), Estilo.C_ROJO if GameManager.datos > 85.0 else Estilo.C_TEXTO,
-		"Memoria de datos: %d %%\nSe vacía sola si hay enlace con la Tierra. Si se llena, los instrumentos se apagan." % roundi(GameManager.datos))
+		Idioma.t("Memoria de datos: %d %%\nLos instrumentos la llenan. Se vacía sola si hay radio. Si llega a 100 %%, los instrumentos se apagan.") % roundi(GameManager.datos))
 	var temp: float = GameManager.temperatura
 	var temp_ok: bool = temp >= 18.0 and temp <= 28.0
 	_pintar_pastilla("temperatura", "%d °C" % roundi(temp), Estilo.C_TEXTO if temp_ok else Estilo.C_ROJO,
-		"Temperatura de la cabina: %d °C\nZona segura: 18 a 28 °C. Fuera de ella sube el estrés y baja la salud." % roundi(temp))
+		Idioma.t("Temperatura de la cabina: %d °C\nZona segura: 18 a 28 °C. Fuera de ella sube el estrés y baja la salud.") % roundi(temp))
 	_pintar_pastilla("filtros", "x %d" % GameManager.filtros, Estilo.C_TEXTO if GameManager.filtros > 0 else Estilo.C_ROJO,
-		"Cartuchos de CO2 de reserva: %d\nSin cartuchos, el aire empeora y baja la salud de todos." % GameManager.filtros)
+		Idioma.t("Cartuchos de CO2 de reserva: %d\nSin cartuchos, el aire empeora y baja la salud de todos.") % GameManager.filtros)
 	if GameManager.enlace_dias > 0:
-		_pintar_pastilla("enlace", "NO (%d d)" % GameManager.enlace_dias, Estilo.C_ROJO,
-			"Enlace con la Tierra PERDIDO: %d día(s) más.\nSin enlace, la memoria de datos no se vacía." % GameManager.enlace_dias)
+		_pintar_pastilla("enlace", Idioma.t("NO (%d d)") % GameManager.enlace_dias, Estilo.C_ROJO,
+			Idioma.t("Enlace con la Tierra PERDIDO: %d día(s) más.\nSin enlace, la memoria de datos no se vacía.") % GameManager.enlace_dias)
 	else:
-		_pintar_pastilla("enlace", "OK", Estilo.C_VERDE, "Enlace con la Tierra activo.")
+		_pintar_pastilla("enlace", "OK", Estilo.C_VERDE, Idioma.t("Enlace con la Tierra activo: la memoria de datos se vacía cada día."))
 
 	# --- Órdenes activas y avisos ---
 	var higiene: String = "suspendida" if GameManager.higiene_suspendida else "normal"
 	iconos_orden["racion"].texture = Estilo.icono("racion_" + GameManager.racion)
-	iconos_orden["racion"].tooltip_text = "Ración: " + String(NOMBRE_ORDEN[GameManager.racion])
+	iconos_orden["racion"].tooltip_text = Idioma.t("Ración: ") + Idioma.t(String(NOMBRE_ORDEN[GameManager.racion]))
 	iconos_orden["instrumentos"].texture = Estilo.icono("instrumentos_" + GameManager.instrumentos)
-	iconos_orden["instrumentos"].tooltip_text = "Instrumentos: " + String(NOMBRE_ORDEN[GameManager.instrumentos])
+	iconos_orden["instrumentos"].tooltip_text = Idioma.t("Instrumentos: ") + Idioma.t(String(NOMBRE_ORDEN[GameManager.instrumentos]))
 	iconos_orden["higiene"].texture = Estilo.icono("higiene_" + higiene)
-	iconos_orden["higiene"].tooltip_text = "Higiene: " + String(NOMBRE_ORDEN[higiene])
+	iconos_orden["higiene"].tooltip_text = Idioma.t("Higiene: ") + Idioma.t(String(NOMBRE_ORDEN[higiene]))
 	var avisos: Array = []
 	if GameManager.modulo_dias > 0:
-		avisos.append("Módulo bloqueado %d d" % GameManager.modulo_dias)
+		avisos.append(Idioma.t("Módulo bloqueado %d d") % GameManager.modulo_dias)
 	if GameManager.reparaciones_dias > 0:
-		avisos.append("Reparación lenta %d d" % GameManager.reparaciones_dias)
+		avisos.append(Idioma.t("Reparación lenta %d d") % GameManager.reparaciones_dias)
 	if GameManager.mision_abortada:
-		avisos.append("Carga soltada")
+		avisos.append(Idioma.t("Carga soltada"))
 	etq_avisos.text = "\n".join(avisos)
 	etq_avisos.get_parent().visible = not avisos.is_empty()
 
@@ -1430,12 +1657,15 @@ func actualizar_hud(animar: bool = true) -> void:
 	etq_alarma.text = str(alarmas.size())
 	if _en_alerta:
 		etq_alarma.add_theme_color_override("font_color", Estilo.C_ROJO)
-		caja_alarma.tooltip_text = "ALARMAS:\n" + "\n".join(alarmas)
+		var lista: Array = []
+		for a in alarmas:
+			lista.append(Idioma.dinamico(String(a)))
+		caja_alarma.tooltip_text = Idioma.t("ALARMAS:") + "\n" + "\n".join(lista)
 		if alarmas.size() > _alarmas_antes and animar:
 			Sonido.efecto("alarma")
 	else:
 		etq_alarma.add_theme_color_override("font_color", Estilo.C_VERDE)
-		caja_alarma.tooltip_text = "Sin alarmas. Una alarma salta cuando un recurso vital baja de %d %%." % int(GameManager.UMBRAL_ALARMA)
+		caja_alarma.tooltip_text = Idioma.t("Sin alarmas. Una alarma salta cuando un recurso vital baja de %d %%.") % int(GameManager.UMBRAL_ALARMA)
 	_alarmas_antes = alarmas.size()
 
 	# --- Tripulación ---
@@ -1450,9 +1680,9 @@ func actualizar_hud(animar: bool = true) -> void:
 		c["insignia"].text = String(insignia[0])
 		c["insignia"].add_theme_color_override("font_color", insignia[1])
 		c["aviso"].visible = confianza < 40.0 and salud > 0.0
-		c["panel"].tooltip_text = "%s  ·  %s\nSalud %d   Estrés %d   Hambre %d\nConfianza en tu mando: %d%s" % [
-			t["nombre"], t["rol"], roundi(salud), roundi(estres), roundi(float(t["hambre"])), roundi(confianza),
-			"  (¡puede ignorar tus órdenes!)" if confianza < 30.0 else ""]
+		c["panel"].tooltip_text = Idioma.t("%s  ·  %s\nSalud %d   Estrés %d   Hambre %d\nConfianza en tu mando: %d%s") % [
+			t["nombre"], Idioma.t(String(t["rol"])), roundi(salud), roundi(estres), roundi(float(t["hambre"])), roundi(confianza),
+			Idioma.t("  (¡puede ignorar tus órdenes!)") if confianza < 30.0 else ""]
 		var salud_antes: float = float(_mostrado.get("salud_" + String(id), salud))
 		if animar and salud < salud_antes - 0.5:
 			_golpes[id] = 0.45       # el retrato tiembla y la tarjeta se pone roja un instante
@@ -1499,14 +1729,14 @@ func _poner_barra(clave: String, barra: ProgressBar, valor: float, animar: bool,
 	var donde: Vector2 = barra.global_position + Vector2(barra.size.x * 0.5 - 14.0, 10.0 if hacia_abajo else -30.0)
 	_flotar(GameManager.signo(d), Estilo.C_VERDE if bueno else Estilo.C_ROJO, donde, 28.0 if hacia_abajo else -28.0)
 
-func _flotar(texto: String, color: Color, donde: Vector2, recorrido: float) -> void:
+func _flotar(texto: String, color: Color, donde: Vector2, recorrido_px: float) -> void:
 	var l: Label = Estilo.con_borde(Estilo.nuevo_texto(texto, 24, color, false), 6)
 	l.position = donde
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	capa_flotante.add_child(l)
 	var tw: Tween = create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(l, "position:y", donde.y + recorrido, 1.5)
+	tw.tween_property(l, "position:y", donde.y + recorrido_px, 1.5)
 	tw.tween_property(l, "modulate:a", 0.0, 0.6).set_delay(0.9)
 	tw.chain().tween_callback(l.queue_free)
 
@@ -1525,6 +1755,9 @@ func _process(delta: float) -> void:
 	_t += delta
 	_dia_mapa = move_toward(_dia_mapa, float(GameManager.dia_actual), delta * 0.7)
 	trayectoria.queue_redraw()
+	if recorrido.visible:
+		recorrido_caja.size = recorrido_caja.get_combined_minimum_size()
+		recorrido.queue_redraw()
 
 	# Luz roja: late mientras haya alarmas y da un destello cuando llega una emergencia
 	_destello = maxf(0.0, _destello - delta * 0.8)
@@ -1553,7 +1786,7 @@ func _process(delta: float) -> void:
 				_golpes.erase(id)
 		n += 1
 
-	if fase != "decision" or not reloj_activo or pausa.visible:
+	if fase != "decision" or not reloj_activo or _en_espera():
 		return
 	tiempo_restante -= delta
 	var queda: float = maxf(tiempo_restante, 0.0)
@@ -1583,9 +1816,15 @@ func _unhandled_key_input(evento: InputEvent) -> void:
 	if tecla == null or not tecla.pressed or tecla.echo:
 		return
 	if tecla.keycode == KEY_ESCAPE:
-		_alternar_pausa()
+		if recorrido.visible:
+			_cerrar_recorrido()
+		else:
+			_alternar_pausa()
 		return
-	if fase != "decision" or pausa.visible:
+	if tecla.keycode == KEY_F1:
+		_abrir_guia()
+		return
+	if fase != "decision" or _en_espera():
 		return
 	var pos: int = -1
 	match tecla.keycode:
@@ -1599,7 +1838,7 @@ func _unhandled_key_input(evento: InputEvent) -> void:
 		_on_opcion(int(orden_opciones[pos]))
 
 func _alternar_pausa() -> void:
-	if fase == "transicion" or fase == "saliendo":
+	if fase == "transicion" or fase == "saliendo" or guia.visible:
 		return
 	pausa.visible = not pausa.visible
 

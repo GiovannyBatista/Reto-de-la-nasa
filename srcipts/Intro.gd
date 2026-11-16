@@ -227,21 +227,21 @@ func _pagina_nave() -> Control:
 	izq.add_child(marco)
 	var img = TextureRect.new()
 	img.texture = load("res://assets/nave/orion.png")
-	img.custom_minimum_size = Vector2(480, 320)
+	img.custom_minimum_size = Vector2(480, 210)
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	marco.add_child(img)
 	var partes = HBoxContainer.new()
 	partes.add_theme_constant_override("separation", 8)
 	izq.add_child(partes)
-	for texto in ["Motor y paneles solares", "Módulo de servicio: aire, agua, energía", "Cápsula: 4 tripulantes"]:
+	for texto in ["Motor y paneles", "Módulo de servicio", "Cápsula"]:
 		var chip: PanelContainer = Estilo.nuevo_panel(Estilo.C_PANEL_CLARO, Estilo.C_BORDE, 8)
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var l: Label = Estilo.nuevo_texto(texto, 16, Estilo.C_TEXTO)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		chip.add_child(l)
 		partes.add_child(chip)
-	izq.add_child(_dato("integridad", "Carga útil máxima: 226,8 kg", "Cada kilo cuenta: más reservas significa menos instrumentos científicos.", 32))
+	izq.add_child(_dato("integridad", "Carga útil: 226,8 kg", "Más reservas significa menos instrumentos.", 32))
 
 	var der = VBoxContainer.new()
 	der.add_theme_constant_override("separation", 10)
