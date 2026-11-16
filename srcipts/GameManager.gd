@@ -282,7 +282,7 @@ func alarmas() -> Array:
 	var lista: Array = []
 	for b in ["agua", "comida", "oxigeno", "electricidad", "combustible"]:
 		if float(nave[b]) < UMBRAL_ALARMA:
-			lista.append("%s por debajo de %d %%" % [ETIQUETAS[b], int(UMBRAL_ALARMA)])
+			lista.append(Idioma.t("%s por debajo de %d %%") % [ETIQUETAS[b], int(UMBRAL_ALARMA)])
 	return lista
 
 func aborto_disponible() -> bool:
@@ -359,7 +359,7 @@ func nuevas_muertes() -> Array:
 	for id in TRIPULANTES:
 		if not esta_vivo(id) and not muertes_avisadas.has(id):
 			muertes_avisadas.append(id)
-			lista.append("¡%s ha muerto!" % tripulantes[id]["nombre"])
+			lista.append(Idioma.t("¡%s ha muerto!") % tripulantes[id]["nombre"])
 	return lista
 
 # ---------------------------------------------------------------
@@ -390,9 +390,9 @@ func procesar_inicio_dia() -> Array:
 	nave["comida"] = maxf(0.0, float(nave["comida"]) - c_comida)
 	nave["oxigeno"] = maxf(0.0, float(nave["oxigeno"]) - c_oxigeno)
 	nave["electricidad"] = maxf(0.0, float(nave["electricidad"]) - c_elec)
-	lineas.append("Consumo diario: Agua -%.1f %%, Comida -%.1f %%, Oxígeno -%.1f %%, Electricidad -%.1f %%." % [c_agua, c_comida, c_oxigeno, c_elec])
+	lineas.append(Idioma.t("Consumo diario: Agua -%.1f %%, Comida -%.1f %%, Oxígeno -%.1f %%, Electricidad -%.1f %%.") % [c_agua, c_comida, c_oxigeno, c_elec])
 	if factor_estres > 1.0:
-		lineas.append("El estrés de la tripulación subió el consumo un %d %%." % roundi((factor_estres - 1.0) * 100.0))
+		lineas.append(Idioma.t("El estrés de la tripulación subió el consumo un %d %%.") % roundi((factor_estres - 1.0) * 100.0))
 	if modulo_dias > 0:
 		lineas.append("El módulo de servicio sigue bloqueado: gastas reservas extra.")
 	if reparaciones_dias > 0:
@@ -405,7 +405,7 @@ func procesar_inicio_dia() -> Array:
 		temperatura = minf(22.0, temperatura + 1.0)
 	var fuera_de_zona: bool = temperatura > 28.0 or temperatura < 18.0
 	if fuera_de_zona:
-		lineas.append("La cabina está a %d °C, fuera de la zona segura (18-28 °C): sube el estrés y baja la salud." % roundi(temperatura))
+		lineas.append(Idioma.t("La cabina está a %d °C, fuera de la zona segura (18-28 °C): sube el estrés y baja la salud.") % roundi(temperatura))
 
 	# 3. Instrumentos, datos y enlace con la Tierra
 	if instrumentos != "apagados":
@@ -414,7 +414,7 @@ func procesar_inicio_dia() -> Array:
 	if enlace_dias <= 0:
 		datos = maxf(0.0, datos - TRANSMISION_DATOS)
 	else:
-		lineas.append("Sin enlace con la Tierra (%d día(s) más): la memoria de datos no se vacía." % enlace_dias)
+		lineas.append(Idioma.t("Sin enlace con la Tierra (%d día(s) más): la memoria de datos no se vacía.") % enlace_dias)
 	if datos >= 100.0:
 		datos = 100.0
 		if instrumentos != "apagados":
@@ -447,7 +447,7 @@ func procesar_inicio_dia() -> Array:
 	if float(nave["comida"]) <= 0.0:
 		lineas.append("Sin comida: la tripulación pierde 15 puntos de salud por día.")
 	elif not avisos_hambre.is_empty():
-		lineas.append("El hambre pasa de 70 %% y resta salud a: %s." % ", ".join(avisos_hambre))
+		lineas.append(Idioma.t("El hambre pasa de 70 %% y resta salud a: %s.") % ", ".join(avisos_hambre))
 	if filtros <= 0:
 		lineas.append("Sin cartuchos de CO2 de reserva: el aire empeora y baja la salud de todos.")
 
@@ -515,7 +515,7 @@ func _evento_estres(id: String) -> String:
 	if nivel >= 2 and id != "elena":
 		tripulantes[id]["confianza"] = maxf(0.0, float(tripulantes[id]["confianza"]) - 8.0)
 	var etiqueta: String = ["tenso", "quebrado", "crítico"][nivel - 1]
-	return "Estrés %s: %s" % [etiqueta, r["texto"]]
+	return Idioma.t("Estrés %s: %s") % [etiqueta, r["texto"]]
 
 # ---------------------------------------------------------------
 # Elegir la decisión del día
@@ -614,18 +614,18 @@ func calcular_p(decision: Dictionary, opcion: Dictionary, con_ruido: bool, detal
 	for m in opcion.get("mods", []):
 		if _cumple(m):
 			p += float(m["m"])
-			detalle.append("Estado de la nave: " + _texto_mod(m))
+			detalle.append(Idioma.t("Estado de la nave: ") + _texto_mod(m))
 	var resp: String = String(decision.get("responsable", ""))
 	if tripulantes.has(resp) and esta_vivo(resp):
 		var nombre: String = String(NOMBRES_TRIPULANTE[resp])
 		if estado(resp) == "activo":
 			p += BONO_ESPECIALISTA
-			detalle.append("%s, el especialista del tema, está en condiciones de actuar (+0.2)." % nombre)
+			detalle.append(Idioma.t("%s, el especialista del tema, está en condiciones de actuar (+0.2).") % nombre)
 		else:
-			detalle.append("%s, el especialista del tema, está %s y no puede ayudar." % [nombre, estado(resp)])
+			detalle.append(Idioma.t("%s, el especialista del tema, está %s y no puede ayudar.") % [nombre, estado(resp)])
 		if float(tripulantes[resp]["estres"]) > 70.0:
 			p -= PENAL_ESTRES
-			detalle.append("%s está muy estresado (-0.2)." % nombre)
+			detalle.append(Idioma.t("%s está muy estresado (-0.2).") % nombre)
 	elif tripulantes.has(resp):
 		detalle.append("El especialista del tema ya no está vivo.")
 	if con_ruido:
@@ -634,7 +634,7 @@ func calcular_p(decision: Dictionary, opcion: Dictionary, con_ruido: bool, detal
 		else:
 			# La habilidad del jugador en el minijuego ocupa el lugar del azar (mismo rango: -RUIDO a +RUIDO)
 			p += habilidad_manual * RUIDO
-			detalle.append("Tu reparación manual pesó %s en el resultado." % signo(habilidad_manual * RUIDO))
+			detalle.append(Idioma.t("Tu reparación manual pesó %s en el resultado.") % signo(habilidad_manual * RUIDO))
 	return p
 
 func _valor_fijo(tier: String) -> float:
@@ -662,7 +662,7 @@ func _etiqueta_efecto(clave: String) -> String:
 		return String(ETIQUETAS[clave])
 	var partes: PackedStringArray = clave.split("_")
 	if partes.size() == 2 and ETIQUETA_STAT.has(partes[0]) and NOMBRES_TRIPULANTE.has(partes[1]):
-		return "%s de %s" % [ETIQUETA_STAT[partes[0]], NOMBRES_TRIPULANTE[partes[1]]]
+		return Idioma.t("%s de %s") % [ETIQUETA_STAT[partes[0]], NOMBRES_TRIPULANTE[partes[1]]]
 	return clave
 
 func signo(v: float) -> String:
@@ -702,7 +702,7 @@ func resolver(decision: Dictionary, indice: int, por_tiempo: bool) -> Dictionary
 	var disponible_aborto: bool = aborto_disponible()
 
 	if por_tiempo:
-		nota = "Se agotó el tiempo: la tripulación actuó por su cuenta (lo hizo %s). La confianza en Elena baja." % NOMBRES_TRIPULANTE.get(resp, "el equipo")
+		nota = Idioma.t("Se agotó el tiempo: la tripulación actuó por su cuenta (lo hizo %s). La confianza en Elena baja.") % NOMBRES_TRIPULANTE.get(resp, "el equipo")
 		if String(decision.get("categoria", "")) == "hito":
 			# Decisión de la historia (resultado fijo): la tripulación elige una opción normal al azar
 			var normales: Array = []
@@ -722,7 +722,7 @@ func resolver(decision: Dictionary, indice: int, por_tiempo: bool) -> Dictionary
 				otras.append(i)
 		if not otras.is_empty():
 			idx = int(otras[rng.randi_range(0, otras.size() - 1)])
-			nota = "%s ya no confía en tu mando (confianza menor a 30 %%) e ignoró tu orden: actuó por su cuenta." % NOMBRES_TRIPULANTE[resp]
+			nota = Idioma.t("%s ya no confía en tu mando (confianza menor a 30 %%) e ignoró tu orden: actuó por su cuenta.") % NOMBRES_TRIPULANTE[resp]
 
 	var opcion: Dictionary = opciones[idx]
 	var factores: Array = []
@@ -827,7 +827,7 @@ func describir_cambios(antes: Dictionary, despues: Dictionary) -> Array:
 			if v != valores[0]:
 				todos_iguales = false
 		if todos_iguales and no_cero.size() >= 2 and no_cero.size() == vivos().size():
-			lineas.append("%s (todos) %s" % [ETIQUETA_STAT[stat], signo(float(valores[0]))])
+			lineas.append(Idioma.t("%s (todos) %s") % [ETIQUETA_STAT[stat], signo(float(valores[0]))])
 		else:
 			var partes: Array = []
 			for i in no_cero.size():

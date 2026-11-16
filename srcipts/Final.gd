@@ -229,22 +229,22 @@ func _motivos() -> Array:
 			m.append("Todos los tripulantes murieron antes del amerizaje.")
 		for b in ["agua", "oxigeno", "electricidad", "combustible"]:
 			if float(GameManager.nave[b]) <= 0.0:
-				m.append("%s llegó a 0 %%." % GameManager.ETIQUETAS[b])
+				m.append(Idioma.t("%s llegó a 0 %%.") % GameManager.ETIQUETAS[b])
 		if GameManager.integridad <= GameManager.INTEGRIDAD_REENTRADA:
-			m.append("El escudo térmico no resistió la reentrada (integridad %d %%)." % roundi(GameManager.integridad))
+			m.append(Idioma.t("El escudo térmico no resistió la reentrada (integridad %d %%).") % roundi(GameManager.integridad))
 	elif tipo == "intermedio":
 		if GameManager.mision_abortada:
 			m.append("Se soltó la carga científica en el Día 10.")
 		var muertos: int = GameManager.TRIPULANTES.size() - GameManager.vivos().size()
 		if muertos > 0:
-			m.append("Murieron %d tripulante(s)." % muertos)
+			m.append(Idioma.t("Murieron %d tripulante(s).") % muertos)
 		if not GameManager.mision_abortada and GameManager.ciencia < GameManager.CIENCIA_FINAL_BUENO:
-			m.append("El progreso científico fue de %d %% (el final bueno exige %d %%)." % [roundi(GameManager.ciencia), int(GameManager.CIENCIA_FINAL_BUENO)])
+			m.append(Idioma.t("El progreso científico fue de %d %% (el final bueno exige %d %%).") % [roundi(GameManager.ciencia), int(GameManager.CIENCIA_FINAL_BUENO)])
 		for b in vitales:
 			if float(GameManager.nave[b]) <= GameManager.UMBRAL_FINAL_BUENO:
-				m.append("%s terminó en %d %% (el final bueno exige más de %d %%)." % [GameManager.ETIQUETAS[b], roundi(GameManager.nave[b]), int(GameManager.UMBRAL_FINAL_BUENO)])
+				m.append(Idioma.t("%s terminó en %d %% (el final bueno exige más de %d %%).") % [GameManager.ETIQUETAS[b], roundi(GameManager.nave[b]), int(GameManager.UMBRAL_FINAL_BUENO)])
 	else:
-		m.append("Los cuatro astronautas sobreviven, todas las reservas superan %d %% y la ciencia llegó a %d %%." % [int(GameManager.UMBRAL_FINAL_BUENO), roundi(GameManager.ciencia)])
+		m.append(Idioma.t("Los cuatro astronautas sobreviven, todas las reservas superan %d %% y la ciencia llegó a %d %%.") % [int(GameManager.UMBRAL_FINAL_BUENO), roundi(GameManager.ciencia)])
 	return m
 
 func _construir_informe() -> void:
@@ -305,7 +305,7 @@ func _construir_informe() -> void:
 		var n: Label = Estilo.nuevo_texto(String(GameManager.NOMBRES_TRIPULANTE[id]), 16, Estilo.ACENTO[id])
 		n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(n)
-		var estado: String = "Salud %d %%" % roundi(salud)
+		var estado: String = Idioma.t("Salud %d %%") % roundi(salud)
 		var c_estado: Color = Estilo.color_nivel(salud)
 		if salud <= 0.0:
 			estado = "No sobrevivió"
@@ -314,7 +314,7 @@ func _construir_informe() -> void:
 		e.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(e)
 	izq.add_child(Estilo.nuevo_texto("DATOS DE LA MISIÓN", 16, Estilo.C_CIAN))
-	izq.add_child(Estilo.nuevo_texto("%s  ·  Día %d de %d  ·  Decisiones buenas: %d de %d  ·  Ciencia: %d %%" % [
+	izq.add_child(Estilo.nuevo_texto(Idioma.t("%s  ·  Día %d de %d  ·  Decisiones buenas: %d de %d  ·  Ciencia: %d %%") % [
 		GameManager.plan_nombre, GameManager.dia_actual, GameManager.DIAS_TOTALES,
 		GameManager.decisiones_buenas, GameManager.decisiones_totales, roundi(GameManager.ciencia)], 16, Estilo.C_TEXTO))
 
@@ -351,9 +351,9 @@ func _construir_informe() -> void:
 	var vm = VBoxContainer.new()
 	vm.add_theme_constant_override("separation", 4)
 	caja.add_child(vm)
-	vm.add_child(Estilo.nuevo_texto("MEMO NASA: " + String(memo["titulo"]), 16, Estilo.C_VERDE))
+	vm.add_child(Estilo.nuevo_texto(Idioma.t("MEMO NASA: ") + String(memo["titulo"]), 16, Estilo.C_VERDE))
 	vm.add_child(Estilo.nuevo_texto(String(memo["texto"]), 16, Estilo.C_TEXTO))
-	var enlace: Button = Estilo.nuevo_boton("Abrir: " + String(memo["fuente"]), 16, 0, 36)
+	var enlace: Button = Estilo.nuevo_boton(Idioma.t("Abrir: ") + String(memo["fuente"]), 16, 0, 36)
 	Estilo.estilo_holo(enlace, Estilo.C_VERDE)
 	enlace.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	enlace.focus_mode = Control.FOCUS_NONE
@@ -380,7 +380,7 @@ func _construir_informe() -> void:
 	var menu: Button = Estilo.nuevo_boton("MENÚ PRINCIPAL", 24, 340, 56)
 	menu.pressed.connect(_ir_al_menu)
 	botones.add_child(menu)
-	panel.tooltip_text = "Semilla de esta partida: %d (sirve para repetirla y depurar errores)" % GameManager.semilla
+	panel.tooltip_text = Idioma.t("Semilla de esta partida: %d (sirve para repetirla y depurar errores)") % GameManager.semilla
 
 func _abrir_informe() -> void:
 	bloque_titulo.visible = false
@@ -389,7 +389,7 @@ func _abrir_informe() -> void:
 	var total: float = float(GameManager.puntaje()["total"])
 	var tw: Tween = create_tween()
 	tw.tween_property(capa_informe, "modulate:a", 1.0, 0.3)
-	tw.tween_method(func(v: float): etq_total.text = "TOTAL: %d / 1000" % roundi(v), 0.0, total, 1.4)
+	tw.tween_method(func(v: float): etq_total.text = Idioma.t("TOTAL: %d / 1000") % roundi(v), 0.0, total, 1.4)
 	var otra: Button = capa_informe.find_child("BotonOtra", true, false)
 	if otra != null:
 		otra.grab_focus.call_deferred()

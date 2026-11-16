@@ -278,7 +278,7 @@ func _pagina_tripulacion() -> Control:
 		var nombre: Label = Estilo.nuevo_texto(String(t["nombre"]), 24, color)
 		nombre.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		c.add_child(nombre)
-		var rol: Label = Estilo.nuevo_texto("%s  ·  %d años" % [t["rol"], t["edad"]], 16, Estilo.C_TEXTO_SUAVE)
+		var rol: Label = Estilo.nuevo_texto(Idioma.t("%s  ·  %d años") % [t["rol"], t["edad"]], 16, Estilo.C_TEXTO_SUAVE)
 		rol.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		c.add_child(rol)
 		c.add_child(HSeparator.new())

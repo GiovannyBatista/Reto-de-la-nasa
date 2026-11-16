@@ -116,6 +116,20 @@ func _ready() -> void:
 	add_child(boton_sonido)
 	_pintar_sonido()
 
+	# --- Selector de idioma (EN / ES), a la izquierda del botón de sonido ---
+	var caja_idioma = HBoxContainer.new()
+	caja_idioma.add_theme_constant_override("separation", 8)
+	caja_idioma.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	caja_idioma.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	caja_idioma.position = Vector2(-136, 24)
+	add_child(caja_idioma)
+	for cod in ["en", "es"]:
+		var bi: Button = Estilo.nuevo_boton(cod.to_upper(), 16, 56, 48)
+		bi.tooltip_text = "English" if cod == "en" else "Español"
+		bi.disabled = (Idioma.idioma == cod)
+		bi.pressed.connect(_on_idioma.bind(cod))
+		caja_idioma.add_child(bi)
+
 	# --- Capa para las ventanas (cómo jugar / referencias) ---
 	capa_ventana = Control.new()
 	capa_ventana.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -149,6 +163,12 @@ func _pintar_sonido() -> void:
 func _on_sonido() -> void:
 	Sonido.alternar_silencio()
 	_pintar_sonido()
+
+func _on_idioma(cod: String) -> void:
+	if Idioma.idioma == cod:
+		return
+	Idioma.cambiar(cod)
+	get_tree().reload_current_scene()   # reconstruye el menú en el idioma nuevo
 
 func _on_jugar() -> void:
 	Estilo.cambiar_escena(self, "res://scenes/intro.tscn")

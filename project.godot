@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="MYG-351: Last Signal"
-run/main_scene="uid://dq53shfaveyhv"
+run/main_scene="uid://dbobb8ruohy1y"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 

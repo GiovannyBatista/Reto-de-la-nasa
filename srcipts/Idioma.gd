@@ -17,14 +17,15 @@ const TextosNave = preload("res://srcipts/TextosEnNave.gd")
 const TextosRecursos = preload("res://srcipts/TextosEnRecursos.gd")
 const RUTA_AJUSTES: String = "user://ajustes.cfg"
 
-var idioma: String = "es"
+var idioma: String = "en"       # inglés por defecto
 var _tabla: Dictionary = {}       # texto en español -> texto en inglés
+var _traduccion: Translation = null   # tabla inglesa registrada en Godot
 var _frases: Array = []           # trozos de frase [español, inglés] para los textos que arma GameManager
 
 func _ready() -> void:
 	var cfg = ConfigFile.new()
 	if cfg.load(RUTA_AJUSTES) == OK:
-		idioma = String(cfg.get_value("juego", "idioma", "es"))
+		idioma = String(cfg.get_value("juego", "idioma", "en"))
 	_cargar_textos()
 	_aplicar()
 
@@ -49,17 +50,21 @@ func _cargar_textos() -> void:
 			for campo in ["texto", "descripcion", "por_que"]:
 				_pareja(String(o.get(campo, "")), String(opciones_en[i].get(campo, "")))
 	# Se registra la tabla en Godot para que etiquetas y botones se traduzcan solos
-	var traduccion = Translation.new()
-	traduccion.locale = "en"
+	_traduccion = Translation.new()
+	_traduccion.locale = "en"
 	for clave in _tabla:
-		traduccion.add_message(clave, _tabla[clave])
-	TranslationServer.add_translation(traduccion)
+		_traduccion.add_message(clave, _tabla[clave])
 
 func _pareja(es: String, en: String) -> void:
 	if es != "" and en != "":
 		_tabla[es] = en
 
 func _aplicar() -> void:
+	# Godot usa "en" como idioma de reserva, así que en español hay que QUITAR la tabla inglesa
+	# (si no, seguiría traduciendo al inglés aunque el idioma sea "es").
+	TranslationServer.remove_translation(_traduccion)
+	if idioma == "en":
+		TranslationServer.add_translation(_traduccion)
 	TranslationServer.set_locale("en" if idioma == "en" else "es")
 
 func es_ingles() -> bool:

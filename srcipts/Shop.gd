@@ -467,9 +467,9 @@ func _dibujar_presupuesto() -> void:
 	c.draw_rect(Rect2(0, 0, ancho, alto), Color(0.02, 0.03, 0.08), false, 2.0)
 	var fuente: Font = Estilo.fuente(16)
 	if fuente != null:
-		c.draw_string(fuente, Vector2(8, alto - 9), "BÁSICOS %d" % GameManager.COSTO_OBLIGATORIO, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.05, 0.06, 0.10))
+		c.draw_string(fuente, Vector2(8, alto - 9), Idioma.t("BÁSICOS %d") % GameManager.COSTO_OBLIGATORIO, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.05, 0.06, 0.10))
 		if w_gasto > 110.0:
-			c.draw_string(fuente, Vector2(w_fijo + 8, alto - 9), "TU PLAN %d" % roundi(_gastado_mostrado), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.05, 0.06, 0.10))
+			c.draw_string(fuente, Vector2(w_fijo + 8, alto - 9), Idioma.t("TU PLAN %d") % roundi(_gastado_mostrado), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.05, 0.06, 0.10))
 
 # Una fila de comparación dentro de la tarjeta de un paquete: icono + texto de color
 func _fila_paquete(padre: Control, icono: String, texto: String, color: Color) -> void:
@@ -518,10 +518,10 @@ func _construir_paquetes(col: VBoxContainer) -> void:
 		var p: Dictionary = GameManager.parametros_plan(datos["niveles"])
 		var dias: float = 100.0 / float(p["consumo_basico"])
 		var energia: float = 100.0 / float(p["consumo_elec"])
-		_fila_paquete(v, "agua", "Reservas: %d días" % int(dias), _color_dias(dias, 16.0, 14.5))
-		_fila_paquete(v, "electricidad", "Energía: %d días" % int(energia), _color_dias(energia, 17.0, 15.0))
-		_fila_paquete(v, "filtros", "Filtros de CO2: %d" % int(p["filtros"]), _color_dias(float(p["filtros"]), 4.0, 3.0))
-		_fila_paquete(v, "ciencia", "Ciencia máx.: %d %%" % roundi(p["ciencia_max"]),
+		_fila_paquete(v, "agua", Idioma.t("Reservas: %d días") % int(dias), _color_dias(dias, 16.0, 14.5))
+		_fila_paquete(v, "electricidad", Idioma.t("Energía: %d días") % int(energia), _color_dias(energia, 17.0, 15.0))
+		_fila_paquete(v, "filtros", Idioma.t("Filtros de CO2: %d") % int(p["filtros"]), _color_dias(float(p["filtros"]), 4.0, 3.0))
+		_fila_paquete(v, "ciencia", Idioma.t("Ciencia máx.: %d %%") % roundi(p["ciencia_max"]),
 			C_VERDE if float(p["ciencia_max"]) >= GameManager.CIENCIA_FINAL_BUENO else C_ROJO)
 	var v3 = _panel(fila)
 	tarjetas_plan["personalizada"] = v3.get_parent()
@@ -577,7 +577,7 @@ func _construir_personalizada(col: VBoxContainer) -> void:
 		barra.custom_minimum_size = Vector2(0, 12)
 		_estilo_barra(barra)
 		tarjeta.add_child(barra)
-		_texto(tarjeta, "%d CM cada nivel" % int(c["costo"]), C_AMARILLO)
+		_texto(tarjeta, Idioma.t("%d CM cada nivel") % int(c["costo"]), C_AMARILLO)
 		_texto(tarjeta, String(EFECTO_CORTO.get(id, c["efecto"])), C_TEXTO_SUAVE)
 		etiquetas_nivel[id] = nivel
 		barras_nivel[id] = barra
@@ -670,7 +670,7 @@ func _on_cambiar(id: String, delta: int):
 	if nuevo < 0 or nuevo > int(control["max"]):
 		return
 	if delta > 0 and _gastado() + int(control["costo"]) > GameManager.PRESUPUESTO_LIBRE:
-		etiqueta_mensaje.text = "No alcanza el presupuesto: quedan %d CM." % (GameManager.PRESUPUESTO_LIBRE - _gastado())
+		etiqueta_mensaje.text = Idioma.t("No alcanza el presupuesto: quedan %d CM.") % (GameManager.PRESUPUESTO_LIBRE - _gastado())
 		return
 	niveles[id] = nuevo
 	etiqueta_mensaje.text = ""
@@ -703,7 +703,7 @@ func _pintar_indicador(clave: String, valor: String, nota: String, color: Color)
 func actualizar():
 	var gastado: int = _gastado()
 	var disponible: int = GameManager.PRESUPUESTO_LIBRE - gastado
-	etiqueta_presupuesto.text = "QUEDAN %d CM" % disponible
+	etiqueta_presupuesto.text = Idioma.t("QUEDAN %d CM") % disponible
 	etiqueta_presupuesto.add_theme_color_override("font_color", C_VERDE if disponible > 0 else C_AMARILLO)
 	for c in GameManager.controles:
 		var id: String = c["id"]
@@ -715,14 +715,14 @@ func actualizar():
 	# Qué significa esta configuración
 	var p: Dictionary = GameManager.parametros_plan(niveles)
 	var nombre: String = GameManager.nombre_plan(niveles)
-	etiqueta_nombre_plan.text = "PLAN ACTUAL: " + nombre.to_upper()
+	etiqueta_nombre_plan.text = Idioma.t("PLAN ACTUAL: ") + nombre.to_upper()
 	var dias: float = 100.0 / float(p["consumo_basico"])
 	var energia: float = 100.0 / float(p["consumo_elec"])
 	var meta: float = GameManager.CIENCIA_FINAL_BUENO
-	_pintar_indicador("reservas", "%s días" % ("%.1f" % dias).replace(".", ","), "la misión dura 14", _color_dias(dias, 16.0, 14.5))
-	_pintar_indicador("energia", "%s días" % ("%.1f" % energia).replace(".", ","), "sin instrumentos", _color_dias(energia, 17.0, 15.0))
+	_pintar_indicador("reservas", Idioma.t("%s días") % ("%.1f" % dias).replace(".", ","), "la misión dura 14", _color_dias(dias, 16.0, 14.5))
+	_pintar_indicador("energia", Idioma.t("%s días") % ("%.1f" % energia).replace(".", ","), "sin instrumentos", _color_dias(energia, 17.0, 15.0))
 	_pintar_indicador("filtros", "x %d" % int(p["filtros"]), "de reserva", _color_dias(float(p["filtros"]), 4.0, 3.0))
-	_pintar_indicador("ciencia", "%d %%" % roundi(p["ciencia_max"]), "meta: %d %%" % int(meta),
+	_pintar_indicador("ciencia", "%d %%" % roundi(p["ciencia_max"]), Idioma.t("meta: %d %%") % int(meta),
 		C_VERDE if float(p["ciencia_max"]) >= meta else C_ROJO)
 	_pintar_indicador("estres", "+%s" % ("%.1f" % float(p["estres_base"])).replace(".", ","), "por tripulante", C_VERDE if float(p["estres_base"]) <= 2.25 else C_AMARILLO)
 	_pintar_indicador("maniobras", "x%s" % ("%.2f" % float(p["mult_combustible"])).replace(".", ","), "de combustible", C_VERDE if float(p["mult_combustible"]) < 0.95 else C_AMARILLO)
@@ -731,13 +731,13 @@ func actualizar():
 	var texto: String = "Plan equilibrado: con buenas decisiones puedes lograr el final bueno."
 	var color: Color = C_VERDE
 	if float(p["ciencia_max"]) < meta:
-		texto = "Con este plan NO se puede lograr el final bueno: la ciencia máxima no llega a %d %%. Sube los instrumentos." % int(meta)
+		texto = Idioma.t("Con este plan NO se puede lograr el final bueno: la ciencia máxima no llega a %d %%. Sube los instrumentos.") % int(meta)
 		color = C_ROJO
 	elif dias < DIAS_MISION + 0.5:
 		texto = "Reservas muy justas: tendrás que racionar comida y agua para llegar al día 14."
 		color = C_AMARILLO
 	elif disponible >= 375:
-		texto = "Te quedan %d CM sin usar. Puedes mejorar algo más en el paso 2." % disponible
+		texto = Idioma.t("Te quedan %d CM sin usar. Puedes mejorar algo más en el paso 2.") % disponible
 		color = C_AMARILLO
 	etiqueta_veredicto.text = texto
 	etiqueta_veredicto.add_theme_color_override("font_color", color.lerp(Color(1, 1, 1), 0.3))
