@@ -1,4 +1,5 @@
 extends Node
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # MYG-351 LAST SIGNAL - motor de reglas (Autoload "GameManager").
 # Aquí vive todo el estado de la partida y las reglas del documento "Diseño del sistema de juego".
 # Las cifras marcadas como "propuesta" salen del documento de diseño o son supuestos que

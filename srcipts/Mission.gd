@@ -1,4 +1,5 @@
 extends Control
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Pantalla de la misión. Ciclo de cada día:
 # 1) configurar la nave (ración, instrumentos, higiene)  2) consumo automático y eventos por estrés
 # 3) decisión 1 (hito o emergencia de nave) con temporizador  4) decisión 2 (recursos) con temporizador

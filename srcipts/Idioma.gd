@@ -1,4 +1,5 @@
 extends Node
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Idioma del juego (Autoload "Idioma"): español (el original) o inglés.
 #
 # Cómo funciona:

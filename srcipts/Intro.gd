@@ -1,4 +1,5 @@
 extends Control
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Prólogo: presenta la misión, la nave y la tripulación antes de la Fase 0 (la tienda).
 # Son 4 páginas con dibujos; los textos salen del documento de diseño (GDD) y del Storytelling.
 

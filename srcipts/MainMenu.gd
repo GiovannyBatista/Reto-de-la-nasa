@@ -1,4 +1,5 @@
 extends Control
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Menú principal de MYG-351: Last Signal.
 # Fondo espacial animado + título + botones. Desde aquí se va al prólogo (intro.tscn).
 

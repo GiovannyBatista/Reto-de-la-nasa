@@ -1,4 +1,5 @@
 extends Control
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Escena del DESPEGUE: aparece entre la Fase 0 (tienda) y el Día 1 de la misión.
 # Cuenta regresiva 3-2-1, ignición, humo y el cohete subiendo. Dura unos 9 segundos.
 # Se puede saltar con cualquier tecla o con un clic.

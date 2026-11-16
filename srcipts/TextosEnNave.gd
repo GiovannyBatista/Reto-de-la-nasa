@@ -1,4 +1,5 @@
 extends RefCounted
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Decisiones de nave (N01-N30) y hitos de la historia (H01-H14) en inglés, por id. El orden de las opciones es el de Eventos.gd.
 const EVENTOS: Dictionary = {
 	"N01_fuga_o2": {

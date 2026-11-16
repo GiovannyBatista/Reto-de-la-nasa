@@ -1,4 +1,5 @@
 extends RefCounted
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Decisiones de recursos (R01-R30) en inglés, por id. El orden de las opciones es el de Eventos.gd.
 const EVENTOS: Dictionary = {
 	"R01_condensado": {

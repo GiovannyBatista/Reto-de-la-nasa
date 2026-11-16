@@ -1,4 +1,5 @@
 extends Control
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Fase 0: preparación en Cabo Cañaveral (estilo cabina pixel-art).
 # De los 10.000 CM, 4.000 son suministros obligatorios y 6.000 se reparten entre Paquete A, B o personalizado.
 # FONDO OPCIONAL: si existe res://assets/fondo_cabina.png se usa como fondo; si no, se dibuja un cielo con estrellas.

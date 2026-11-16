@@ -1,4 +1,5 @@
 extends Control
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # GUÍA DEL JUEGO: ventana con pestañas que explica, con iconos y frases cortas, qué es cada cosa
 # y qué pasa cuando sube o baja (recursos, sistemas, tripulación y decisiones).
 #

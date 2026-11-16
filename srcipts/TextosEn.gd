@@ -1,4 +1,5 @@
 extends RefCounted
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Traducciones al inglés de la interfaz. Generado a partir de los textos en español del juego.
 # UI: texto en español -> english. Los textos fijos se traducen solos; los que llevan números pasan por Idioma.t().
 # FRASES: trozos para los textos que GameManager arma con números y nombres (Idioma.dinamico). Van de más largo a más corto.

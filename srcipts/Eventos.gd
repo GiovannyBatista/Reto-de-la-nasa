@@ -1,4 +1,5 @@
 extends Node
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Datos de la misión (Autoload "Eventos").
 # - banco: 60 decisiones del documento "Banco de decisiones" (30 de nave + 30 de recursos).
 #   El juego sortea una por día de nave y una de recursos, según el estado de la partida.

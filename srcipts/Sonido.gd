@@ -1,4 +1,5 @@
 extends Node
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Sonido del juego (Autoload "Sonido"): música, zumbido de la nave y efectos.
 # Los archivos están en assets/audio/ y se generan con tools/generar_audio.py.
 # Para cambiar un sonido, reemplaza el .wav por otro con el MISMO nombre.

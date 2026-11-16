@@ -1,4 +1,5 @@
 extends Control
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Minijuegos de TAREA MANUAL.
 # Aparecen después de elegir un procedimiento válido (no una trampa) en una emergencia de la nave
 # o en una decisión de recursos: tú mismo haces el trabajo y qué tan bien te salga cambia el resultado.

@@ -1,4 +1,5 @@
 extends Control
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Fondo espacial animado: nebulosa + estrellas en 3 capas que se mueven a distinta velocidad (parallax)
 # + planetas que giran (Tierra y Luna).
 #

@@ -1,4 +1,5 @@
 extends Control
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Pantalla GRÁFICA de la misión (los 14 días).
 #
 # Las reglas del juego NO están aquí: siguen en GameManager.gd y Eventos.gd. Este script solo dibuja.

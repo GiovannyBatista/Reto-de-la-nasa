@@ -1,4 +1,5 @@
 extends Control
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Pantalla de los 3 finales (cada uno con su propia escena dibujada):
 #   bueno      -> la Orión baja con sus paracaídas y ameriza al amanecer
 #   intermedio -> la cápsula flota sola bajo la lluvia

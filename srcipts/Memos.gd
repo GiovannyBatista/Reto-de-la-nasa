@@ -1,4 +1,5 @@
 extends RefCounted
+# Generado/modificado con ayuda de IA (Claude, Anthropic) y revisado por el equipo.
 # Memos NASA que aparecen después de cada decisión y en los finales.
 # Los textos y enlaces salen del documento "Storytelling" del equipo (secciones [MEMO NASA EN PANTALLA]).
 #
