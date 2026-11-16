@@ -63,8 +63,23 @@ var tiempo_restante: float = 0.0
 var snap_dia: Dictionary = {}
 var siguiente: String = ""
 
+const RUTA_FUENTE: String = "res://assets/Thin_Sans.ttf"
+
+# Fuente pixel-art: se usa si el archivo existe; los acentos, la ñ y los símbolos que la fuente no tiene salen con una fuente del sistema.
+func _aplicar_fuente() -> void:
+	if not ResourceLoader.exists(RUTA_FUENTE):
+		return
+	var f: Font = load(RUTA_FUENTE)
+	f.fallbacks = [SystemFont.new()]
+	var t = Theme.new()
+	t.default_font = f
+	t.default_font_size = 18   # con una fuente TTF puedes usar cualquier tamaño
+	theme = t
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
 func _ready():
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_aplicar_fuente()
 	var raiz = HBoxContainer.new()
 	raiz.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	raiz.add_theme_constant_override("separation", 12)
@@ -217,7 +232,7 @@ func _construir_principal() -> ScrollContainer:
 # ---------------------------------------------------------------
 func _mostrar_config():
 	fase = "config"
-	titulo_dia.text = "DÍA %d / %d" % [GameManager.dia_actual, GameManager.DIAS_TOTALES]
+	titulo_dia.text = Idioma.t("DÍA %d / %d") % [GameManager.dia_actual, GameManager.DIAS_TOTALES]
 	etiqueta_registro.text = ""
 	sel_racion.select(RACIONES.find(GameManager.racion))
 	sel_instrumentos.select(INSTRUMENTOS.find(GameManager.instrumentos))
@@ -236,7 +251,7 @@ func _on_iniciar_dia():
 	GameManager.higiene_suspendida = (sel_higiene.selected == 1)
 	snap_dia = GameManager.instantanea()
 	var lineas: Array = GameManager.procesar_inicio_dia()
-	etiqueta_registro.text = "REGISTRO DEL DÍA\n- " + "\n- ".join(lineas)
+	etiqueta_registro.text = Idioma.t("REGISTRO DEL DÍA\n- ") + "\n- ".join(lineas)
 	panel_config.visible = false
 	actualizar_hud()
 	if GameManager.hay_final_inmediato():
@@ -260,14 +275,14 @@ func _mostrar_decision():
 
 	var tipo: String = "Gestión de recursos"
 	if d["categoria"] == "nave":
-		tipo = "Emergencia de la nave (gravedad %d)" % int(d["gravedad"])
+		tipo = Idioma.t("Emergencia de la nave (gravedad %d)") % int(d["gravedad"])
 	elif d["categoria"] == "hito":
 		tipo = "Hito de la misión"
 	var resp: String = String(d.get("responsable", ""))
-	etiqueta_tema.text = "DECISIÓN %d: %s\n%s | Responsable: %s" % [numero_decision, d["tema"], tipo, GameManager.NOMBRES_TRIPULANTE.get(resp, resp)]
+	etiqueta_tema.text = Idioma.t("DECISIÓN %d: %s\n%s | Responsable: %s") % [numero_decision, d["tema"], tipo, GameManager.NOMBRES_TRIPULANTE.get(resp, resp)]
 	var situacion: String = String(d["texto"])
 	if d.get("ruta_aborto", false) and GameManager.aborto_disponible():
-		situacion += "\n\n¡ATENCIÓN! Tus reservas están en rojo: puedes soltar la carga científica para aligerar la nave."
+		situacion += Idioma.t("\n\n¡ATENCIÓN! Tus reservas están en rojo: puedes soltar la carga científica para aligerar la nave.")
 	texto_situacion.text = situacion
 
 	for hijo in zona_opciones.get_children():
@@ -307,7 +322,7 @@ func _mostrar_decision():
 	etiqueta_tiempo.visible = con_tiempo
 	barra_tiempo.max_value = tiempo_total
 	barra_tiempo.value = tiempo_restante
-	etiqueta_tiempo.text = "Tiempo: %d s" % ceili(tiempo_restante)
+	etiqueta_tiempo.text = Idioma.t("Tiempo: %d s") % ceili(tiempo_restante)
 
 	panel_decision.visible = true
 	panel_feedback.visible = false
@@ -318,7 +333,7 @@ func _process(delta: float) -> void:
 		return
 	tiempo_restante -= delta
 	barra_tiempo.value = maxf(tiempo_restante, 0.0)
-	etiqueta_tiempo.text = "Tiempo: %d s" % ceili(maxf(tiempo_restante, 0.0))
+	etiqueta_tiempo.text = Idioma.t("Tiempo: %d s") % ceili(maxf(tiempo_restante, 0.0))
 	barra_tiempo.modulate = ROJO if tiempo_restante < 4.0 else BLANCO
 	if tiempo_restante <= 0.0:
 		_resolver(0, true)
@@ -349,15 +364,15 @@ func _resolver(indice: int, por_tiempo: bool):
 func _armar_feedback(res: Dictionary) -> String:
 	var opcion: Dictionary = res["opcion"]
 	var l: Array = []
-	l.append("RESULTADO: %s" % TIER_TEXTO[String(res["tier"])])
-	l.append("Decisión: " + String(opcion["texto"]))
+	l.append(Idioma.t("RESULTADO: %s") % TIER_TEXTO[String(res["tier"])])
+	l.append(Idioma.t("Decisión: ") + String(opcion["texto"]))
 	if String(res["nota"]) != "":
 		l.append("")
 		l.append(String(res["nota"]))
 	l.append("")
 	l.append("QUÉ PASÓ")
 	if res["cambios"].is_empty():
-		l.append("- Las barras no cambiaron.")
+		l.append(Idioma.t("- Las barras no cambiaron."))
 	for c in res["cambios"]:
 		l.append("- " + String(c))
 	for m in res["muertes"]:
@@ -371,7 +386,7 @@ func _armar_feedback(res: Dictionary) -> String:
 		l.append("- " + por_que)
 	var fuente: String = String(opcion.get("fuente", ""))
 	if fuente != "":
-		l.append("Fuente: " + fuente)
+		l.append(Idioma.t("Fuente: ") + fuente)
 	if not res["alternativas"].is_empty():
 		l.append("")
 		l.append("QUÉ HABRÍA PASADO CON LAS OTRAS OPCIONES (según el estado de la nave en ese momento)")
@@ -399,13 +414,13 @@ func _cerrar_dia():
 	fase = "feedback"
 	panel_decision.visible = false
 	var cambios: Array = GameManager.describir_cambios(snap_dia, GameManager.instantanea())
-	var l: Array = ["RESUMEN DEL DÍA %d" % GameManager.dia_actual, ""]
+	var l: Array = [Idioma.t("RESUMEN DEL DÍA %d") % GameManager.dia_actual, ""]
 	if cambios.is_empty():
-		l.append("- Sin cambios.")
+		l.append(Idioma.t("- Sin cambios."))
 	for c in cambios:
 		l.append("- " + String(c))
 	for a in GameManager.alarmas():
-		l.append("ALARMA: " + String(a))
+		l.append(Idioma.t("ALARMA: ") + String(a))
 	texto_feedback.text = "\n".join(l)
 	GameManager.cerrar_dia()
 	if GameManager.hay_final_inmediato() or GameManager.dia_actual >= GameManager.DIAS_TOTALES:
@@ -413,7 +428,7 @@ func _cerrar_dia():
 		boton_continuar.text = "Ver el desenlace de la misión"
 	else:
 		siguiente = "dia"
-		boton_continuar.text = "Continuar al día %d" % (GameManager.dia_actual + 1)
+		boton_continuar.text = Idioma.t("Continuar al día %d") % (GameManager.dia_actual + 1)
 	panel_feedback.visible = true
 	actualizar_hud()
 
@@ -430,22 +445,22 @@ func _motivos(tipo: String) -> Array:
 			m.append("Todos los tripulantes murieron antes del amerizaje.")
 		for b in ["agua", "oxigeno", "electricidad", "combustible"]:
 			if float(GameManager.nave[b]) <= 0.0:
-				m.append("%s llegó a 0 %%." % GameManager.ETIQUETAS[b])
+				m.append(Idioma.t("%s llegó a 0 %%.") % GameManager.ETIQUETAS[b])
 		if GameManager.integridad <= GameManager.INTEGRIDAD_REENTRADA:
-			m.append("El escudo térmico no resistió la reentrada (integridad %d %%)." % roundi(GameManager.integridad))
+			m.append(Idioma.t("El escudo térmico no resistió la reentrada (integridad %d %%).") % roundi(GameManager.integridad))
 	elif tipo == "intermedio":
 		if GameManager.mision_abortada:
 			m.append("Se soltó la carga científica en el Día 10.")
 		var muertos: int = GameManager.TRIPULANTES.size() - GameManager.vivos().size()
 		if muertos > 0:
-			m.append("Murieron %d tripulante(s)." % muertos)
+			m.append(Idioma.t("Murieron %d tripulante(s).") % muertos)
 		if not GameManager.mision_abortada and GameManager.ciencia < GameManager.CIENCIA_FINAL_BUENO:
-			m.append("El progreso científico fue de %d %% (el final bueno exige %d %%)." % [roundi(GameManager.ciencia), int(GameManager.CIENCIA_FINAL_BUENO)])
+			m.append(Idioma.t("El progreso científico fue de %d %% (el final bueno exige %d %%).") % [roundi(GameManager.ciencia), int(GameManager.CIENCIA_FINAL_BUENO)])
 		for b in vitales:
 			if float(GameManager.nave[b]) <= GameManager.UMBRAL_FINAL_BUENO:
-				m.append("%s terminó en %d %% (el final bueno exige más de %d %%)." % [GameManager.ETIQUETAS[b], roundi(GameManager.nave[b]), int(GameManager.UMBRAL_FINAL_BUENO)])
+				m.append(Idioma.t("%s terminó en %d %% (el final bueno exige más de %d %%).") % [GameManager.ETIQUETAS[b], roundi(GameManager.nave[b]), int(GameManager.UMBRAL_FINAL_BUENO)])
 	else:
-		m.append("Los cuatro astronautas sobreviven, todas las barras superan %d %% y el progreso científico llegó a %d %%." % [int(GameManager.UMBRAL_FINAL_BUENO), roundi(GameManager.ciencia)])
+		m.append(Idioma.t("Los cuatro astronautas sobreviven, todas las barras superan %d %% y el progreso científico llegó a %d %%.") % [int(GameManager.UMBRAL_FINAL_BUENO), roundi(GameManager.ciencia)])
 	return m
 
 func _ir_al_final():
@@ -465,21 +480,21 @@ func _ir_al_final():
 		l.append("- " + String(motivo))
 	l.append("")
 	l.append("INFORME DE LA MISIÓN")
-	l.append("- Configuración de la Fase 0: " + GameManager.plan_nombre)
-	l.append("- Día alcanzado: %d / %d" % [GameManager.dia_actual, GameManager.DIAS_TOTALES])
-	l.append("- Tripulantes vivos: %d / 4" % GameManager.vivos().size())
-	l.append("- Decisiones con resultado bueno: %d de %d" % [GameManager.decisiones_buenas, GameManager.decisiones_totales])
-	l.append("- Progreso científico: %d %% (tope de tu plan: %d %%)" % [roundi(GameManager.ciencia), roundi(GameManager.ciencia_max)])
+	l.append(Idioma.t("- Configuración de la Fase 0: ") + GameManager.plan_nombre)
+	l.append(Idioma.t("- Día alcanzado: %d / %d") % [GameManager.dia_actual, GameManager.DIAS_TOTALES])
+	l.append(Idioma.t("- Tripulantes vivos: %d / 4") % GameManager.vivos().size())
+	l.append(Idioma.t("- Decisiones con resultado bueno: %d de %d") % [GameManager.decisiones_buenas, GameManager.decisiones_totales])
+	l.append(Idioma.t("- Progreso científico: %d %% (tope de tu plan: %d %%)") % [roundi(GameManager.ciencia), roundi(GameManager.ciencia_max)])
 	l.append("")
 	l.append("PUNTUACIÓN (0 a 1000)")
-	l.append("- Supervivencia: %d / 400" % roundi(pt["supervivencia"]))
-	l.append("- Ciencia: %d / 250" % roundi(pt["ciencia"]))
-	l.append("- Recursos: %d / 150" % roundi(pt["recursos"]))
-	l.append("- Buenas decisiones: %d / 150" % roundi(pt["decisiones"]))
-	l.append("- Cohesión (confianza en Elena): %d / 50" % roundi(pt["cohesion"]))
-	l.append("TOTAL: %d / 1000" % roundi(pt["total"]))
+	l.append(Idioma.t("- Supervivencia: %d / 400") % roundi(pt["supervivencia"]))
+	l.append(Idioma.t("- Ciencia: %d / 250") % roundi(pt["ciencia"]))
+	l.append(Idioma.t("- Recursos: %d / 150") % roundi(pt["recursos"]))
+	l.append(Idioma.t("- Buenas decisiones: %d / 150") % roundi(pt["decisiones"]))
+	l.append(Idioma.t("- Cohesión (confianza en Elena): %d / 50") % roundi(pt["cohesion"]))
+	l.append(Idioma.t("TOTAL: %d / 1000") % roundi(pt["total"]))
 	l.append("")
-	l.append("Semilla de esta partida: %d (sirve para repetirla y depurar errores)" % GameManager.semilla)
+	l.append(Idioma.t("Semilla de esta partida: %d (sirve para repetirla y depurar errores)") % GameManager.semilla)
 	texto_final.text = "\n".join(l)
 	panel_final.visible = true
 	actualizar_hud()
@@ -502,27 +517,27 @@ func actualizar_hud():
 		elif clave != "ciencia":
 			rojo = v < GameManager.UMBRAL_ABORTO
 		barras[clave].modulate = ROJO if rojo else BLANCO
-	nombres_barra["ciencia"].text = "Ciencia (tope %d)" % roundi(GameManager.ciencia_max)
+	nombres_barra["ciencia"].text = Idioma.t("Ciencia (tope %d)") % roundi(GameManager.ciencia_max)
 
 	var enlace: String = "activo"
 	if GameManager.enlace_dias > 0:
-		enlace = "PERDIDO (%d día(s))" % GameManager.enlace_dias
-	var ambiente: String = "Temperatura: %d °C (zona segura 18-28) | Filtros de CO2: %d | Enlace con la Tierra: %s" % [
+		enlace = Idioma.t("PERDIDO (%d día(s))") % GameManager.enlace_dias
+	var ambiente: String = Idioma.t("Temperatura: %d °C (zona segura 18-28) | Filtros de CO2: %d | Enlace con la Tierra: %s") % [
 		roundi(GameManager.temperatura), GameManager.filtros, enlace]
-	ambiente += "\nRación: %s | Instrumentos: %s | Higiene: %s" % [
+	ambiente += Idioma.t("\nRación: %s | Instrumentos: %s | Higiene: %s") % [
 		NOMBRES_RACION[RACIONES.find(GameManager.racion)], NOMBRES_INSTRUMENTOS[INSTRUMENTOS.find(GameManager.instrumentos)],
 		"Suspendida" if GameManager.higiene_suspendida else "Normal"]
 	if GameManager.modulo_dias > 0:
-		ambiente += "\nMódulo de servicio bloqueado: %d día(s)" % GameManager.modulo_dias
+		ambiente += Idioma.t("\nMódulo de servicio bloqueado: %d día(s)") % GameManager.modulo_dias
 	if GameManager.reparaciones_dias > 0:
-		ambiente += "\nReparaciones lentas: %d día(s)" % GameManager.reparaciones_dias
+		ambiente += Idioma.t("\nReparaciones lentas: %d día(s)") % GameManager.reparaciones_dias
 	etiqueta_ambiente.text = ambiente
 
 	var alarmas: Array = GameManager.alarmas()
 	if alarmas.is_empty():
 		etiqueta_alarma.text = ""
 	else:
-		etiqueta_alarma.text = "¡ALARMA! " + ", ".join(alarmas)
+		etiqueta_alarma.text = Idioma.t("¡ALARMA! ") + ", ".join(alarmas)
 
 	for id in GameManager.TRIPULANTES:
 		var t: Dictionary = GameManager.tripulantes[id]
@@ -530,5 +545,5 @@ func actualizar_hud():
 		p["titulo"].text = "%s (%s): %s" % [t["nombre"], t["rol"], GameManager.estado(id).to_upper()]
 		p["salud"].value = float(t["salud"])
 		p["salud"].modulate = ROJO if float(t["salud"]) < 25.0 else BLANCO
-		p["stats"].text = "Salud %d | Estrés %d | Hambre %d | Confianza %d" % [
+		p["stats"].text = Idioma.t("Salud %d | Estrés %d | Hambre %d | Confianza %d") % [
 			roundi(t["salud"]), roundi(t["estres"]), roundi(t["hambre"]), roundi(t["confianza"])]

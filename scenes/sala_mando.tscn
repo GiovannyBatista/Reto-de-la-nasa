@@ -1,0 +1,175 @@
+[gd_scene format=3 uid="uid://eb6y6kd4jcm5"]
+
+[ext_resource type="Texture2D" uid="uid://troaxymv5q3k" path="res://assets/space/stars-far-tile.png" id="1_5c3j1"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_xtguu"]
+region = Rect2(0, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_n5cit"]
+region = Rect2(96, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_x5k1f"]
+region = Rect2(192, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_3nojs"]
+region = Rect2(288, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_cjbnp"]
+region = Rect2(384, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_csqow"]
+region = Rect2(480, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_lkpa2"]
+region = Rect2(576, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_nykmy"]
+region = Rect2(672, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_laegk"]
+region = Rect2(768, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_tb3ap"]
+region = Rect2(864, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_2gkdj"]
+region = Rect2(960, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_fq0ed"]
+region = Rect2(1056, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_fsv27"]
+region = Rect2(1152, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_vkt00"]
+region = Rect2(1248, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_dt7ld"]
+region = Rect2(1344, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_xjhc1"]
+region = Rect2(1440, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_kjnrt"]
+region = Rect2(1536, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_fyyua"]
+region = Rect2(1632, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_en8b1"]
+region = Rect2(1728, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_7p0kl"]
+region = Rect2(1824, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_yw7yh"]
+region = Rect2(1920, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_bmyh3"]
+region = Rect2(2016, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_wryka"]
+region = Rect2(2112, 0, 96, 96)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_fils1"]
+region = Rect2(2208, 0, 96, 96)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_u5bk5"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_xtguu")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_n5cit")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_x5k1f")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_3nojs")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_cjbnp")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_csqow")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_lkpa2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_nykmy")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_laegk")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_tb3ap")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_2gkdj")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_fq0ed")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_fsv27")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_vkt00")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_dt7ld")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_xjhc1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_kjnrt")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_fyyua")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_en8b1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_7p0kl")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_yw7yh")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_bmyh3")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_wryka")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_fils1")
+}],
+"loop": 1,
+"name": &"default",
+"speed": 4.0
+}]
+
+[node name="salaMando" type="Node2D" unique_id=1219883267]
+
+[node name="starfield" type="Parallax2D" parent="." unique_id=483724415]
+scale = Vector2(2, 2)
+repeat_size = Vector2(256, 256)
+autoscroll = Vector2(-15, -5)
+repeat_times = 5
+
+[node name="starfar" type="Sprite2D" parent="starfield" unique_id=194023481]
+texture = ExtResource("1_5c3j1")
+
+[node name="cabina" type="Sprite2D" parent="." unique_id=475114984]
+position = Vector2(640, 360)
+
+[node name="luna" type="AnimatedSprite2D" parent="." unique_id=1369053001]
+position = Vector2(950, 115)
+scale = Vector2(0.5, 0.5)
+sprite_frames = SubResource("SpriteFrames_u5bk5")
+autoplay = "default"
