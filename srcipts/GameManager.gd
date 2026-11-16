@@ -113,6 +113,9 @@ var instrumentos_bloqueados: bool = false
 var mision_abortada: bool = false
 var forzar_final: String = ""
 var penal_tiempo: float = 0.0
+# Minijuego de reparación: si la pantalla pone aquí un valor entre -1 (falló) y 1 (perfecto), ese valor
+# reemplaza al azar ("ruido") de la próxima decisión. NAN = no hubo minijuego y se tira el dado normal.
+var habilidad_manual: float = NAN
 var decisiones_totales: int = 0
 var decisiones_buenas: int = 0
 
@@ -147,6 +150,7 @@ func nueva_partida() -> void:
 	mision_abortada = false
 	forzar_final = ""
 	penal_tiempo = 0.0
+	habilidad_manual = NAN
 	decisiones_totales = 0
 	decisiones_buenas = 0
 	veces = {}
@@ -625,7 +629,12 @@ func calcular_p(decision: Dictionary, opcion: Dictionary, con_ruido: bool, detal
 	elif tripulantes.has(resp):
 		detalle.append("El especialista del tema ya no está vivo.")
 	if con_ruido:
-		p += rng.randf_range(-RUIDO, RUIDO)
+		if is_nan(habilidad_manual):
+			p += rng.randf_range(-RUIDO, RUIDO)
+		else:
+			# La habilidad del jugador en el minijuego ocupa el lugar del azar (mismo rango: -RUIDO a +RUIDO)
+			p += habilidad_manual * RUIDO
+			detalle.append("Tu reparación manual pesó %s en el resultado." % signo(habilidad_manual * RUIDO))
 	return p
 
 func _valor_fijo(tier: String) -> float:
@@ -766,6 +775,7 @@ func resolver(decision: Dictionary, indice: int, por_tiempo: bool) -> Dictionary
 	decisiones_totales += 1
 	if tier == "bueno":
 		decisiones_buenas += 1
+	habilidad_manual = NAN
 	var despues: Dictionary = instantanea()
 
 	return {

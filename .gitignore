@@ -14,3 +14,8 @@ export_credentials.cfg
 .mono/
 data_*/
 mono_crash.*.json
+
+# Juego exportado (se entrega aparte, no va al repositorio)
+*.exe
+*.pck
+*.tmp

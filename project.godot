@@ -10,8 +10,8 @@ config_version=5
 
 [application]
 
-config/name="Juego de la Nasa"
-run/main_scene="uid://c5wfkdaejmm0s"
+config/name="MYG-351: Last Signal"
+run/main_scene="uid://dq53shfaveyhv"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 
@@ -19,6 +19,8 @@ config/icon="res://icon.svg"
 
 GameManager="*uid://cw3ewsvj655r6"
 Eventos="*uid://2vay4s2i1bqv"
+Sonido="*res://srcipts/Sonido.gd"
+Idioma="*res://srcipts/Idioma.gd"
 
 [display]
 
